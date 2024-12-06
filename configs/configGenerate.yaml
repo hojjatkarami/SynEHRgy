@@ -1,0 +1,16 @@
+###########
+run_name: "TEST" # this model should exist in the saved_models folder
+fix_covars: False # [Under development] this is used for the forecasting task. a conditional generation method.
+bin_type: uniform
+#######
+
+n_samples: 6000 #78000
+n_resample: 1000
+batch_size: 256 # number of generated patients during each inference.
+
+generation: # generation params as in .generate() method in HuggingFace
+  top_k: 50
+  top_p: 1.0
+  temperature: 1.0
+  repetition_penalty: 1.0
+  do_sample: True

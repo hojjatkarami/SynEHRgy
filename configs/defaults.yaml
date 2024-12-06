@@ -1,0 +1,9 @@
+
+defaults:
+- general: 
+- encoder: default
+- projection: default
+- fusion: default
+- optimizer: adam
+- wandb: default
+- experiment: default

@@ -1,0 +1,47 @@
+defaults:
+  - data: mimic3
+
+  - _self_
+
+hydra:
+  run:
+    dir: ./outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+
+run_name: TEST
+
+wandb:
+  project: SynEHRgy
+
+mode: pretrain # pretrain or fcast # fcast is UNDER DEVELOPMENT
+base_model: full-icd-big-uni2[v1] # relevant if mode is fcast
+
+preprocess:
+  label_shuffle: False
+  ts_shuffle: False
+  mask_prob: 0.0 # probablity of a token being masked
+  truncate: true
+  split: false
+  bin_type: uniform # uniform or quantile or raw
+
+use_pretrained: False
+ignore_ts: False
+model: gpt # bart or gpt
+
+train:
+  epochs: 20
+  patience: 5
+  gclip: 1
+  ratio: 1 # low ratio can be used for debug mode
+
+hparams:
+  lr: 3e-4
+  batch_size: 128
+  mini_batch: 64
+  n_ctx: 1024
+  n_embd: 384
+  n_layer: 4
+  n_head: 4
+
+loss:
+  soft_labels: False
+  n_next: 1
