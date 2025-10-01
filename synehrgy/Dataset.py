@@ -1,5 +1,3 @@
-
-
 import torch
 import pickle
 import random
@@ -11,13 +9,8 @@ import os
 from torch.utils.data import Dataset
 
 
-
-
-
-
-def tokenize_dataset(dataset_orig, config, truncate=True, split=False, ignore_ts=False, bin_type='quantile',ts_shuffle=False):
-
-    if bin_type=='quantile':
+def tokenize_dataset(dataset_orig, config, truncate=True, split=False, ignore_ts=False, bin_type='quantile', ts_shuffle=False):
+    if bin_type == 'quantile':
         token2id = pickle.load(open(f"{config.dataset_folder}/metadata.pkl", "rb"))['token2id']
         var2id = pickle.load(open(f"{config.dataset_folder}/metadata.pkl", "rb"))['var2id']
     else:
@@ -25,10 +18,8 @@ def tokenize_dataset(dataset_orig, config, truncate=True, split=False, ignore_ts
         var2id = pickle.load(open(f"{config.dataset_folder}/metadata2.pkl", "rb"))['var2id']
     dataset = []
     tok_horizons = []
-    # for orig_ehr in tqdm(dataset_orig, desc="Tokenizing Dataset"):
     n_truncated_tokens = 0
     for orig_ehr in tqdm(dataset_orig, desc="Tokenizing Dataset"):
-        
         n_stays = len(orig_ehr["codes"])
 
         new_ehr = []
@@ -221,7 +212,6 @@ def detokenize(synthetic_ehrs, config, id2token, idToCode=None):
             all_ts.append(current_ts)
             all_covars.append(current_covar)
 
-        
         ehr_outputs.append({
             'covars': all_covars,
             'codes': all_codes,
@@ -230,35 +220,14 @@ def detokenize(synthetic_ehrs, config, id2token, idToCode=None):
             'labels_ihm': all_labels_ihm
         })
 
-
     print(f"full: {n_full}, truncated: {n_trunc}")
     print(f"no ihm: {no_ihm} / {len(synthetic_ehrs)}")
-    
-
-
     
     return ehr_outputs
 
 
-
-
-def tokenize_dataset_raw(dataset_orig, config,tokenizer, truncate=True, split=False, ignore_ts=False, bin_type='quantile',ts_shuffle=False):
-
-
-        
-    # n_before = len(dataset_orig)
-    # dataset_orig = [
-    #     patient
-    #     for patient in dataset_orig
-    #     if sum([len(visit) for visit in patient["visits"]])
-    #     + len(patient["visits"])
-    #     + config.label_vocab_size
-    #     + 3
-    #     < config.n_ctx
-    # ]
-    # n_after = len(dataset_orig)
-    # print(f"Removed {n_before - n_after} patients from dataset")
-    if bin_type=='quantile':
+def tokenize_dataset_raw(dataset_orig, config, tokenizer, truncate=True, split=False, ignore_ts=False, bin_type='quantile', ts_shuffle=False):
+    if bin_type == 'quantile':
         token2id = pickle.load(open(f"{config.dataset_folder}/metadata.pkl", "rb"))['token2id']
         var2id = pickle.load(open(f"{config.dataset_folder}/metadata.pkl", "rb"))['var2id']
     else:
@@ -267,18 +236,14 @@ def tokenize_dataset_raw(dataset_orig, config,tokenizer, truncate=True, split=Fa
     dataset = []
     tok_horizons = []
     translation_table = str.maketrans('', '', "[],()'")
-    # for orig_ehr in tqdm(dataset_orig, desc="Tokenizing Dataset"):
     n_truncated_tokens = 0
     for orig_ehr in tqdm(dataset_orig, desc="Tokenizing Dataset"):
-        
         n_stays = len(orig_ehr["codes"])
 
         new_ehr = []
-        temp_horizon = [-1,-1,-1,-1]
-        # add start record token
-        new_ehr.append(['<s>'])  # Start Record
-        
-
+        temp_horizon = [-1, -1, -1, -1]
+        # Add start record token
+        new_ehr.append(['<s>'])
         
         for i in range(n_stays):
             adm_labels_phe = orig_ehr["labels_phe"][i]
@@ -288,16 +253,14 @@ def tokenize_dataset_raw(dataset_orig, config,tokenizer, truncate=True, split=Fa
             adm_ts = orig_ehr["ts"][i]
             adm_horizon = orig_ehr["horizons"][i]
 
-            # add covars
-            for var_id,disc_val in zip(adm_covars[0],adm_covars[1]):
-                new_ehr.append([('covar',var_id,disc_val)])
+            # Add covariates
+            for var_id, disc_val in zip(adm_covars[0], adm_covars[1]):
+                new_ehr.append([('covar', var_id, disc_val)])
 
             new_ehr.append(['</covar>'])
 
-            # Add Labels
-            # add ihm label
-            new_ehr.append(
-                [('label','ihm',adm_labels_ihm)]
+            # Add labels (ihm and phenotype)
+            new_ehr.append([('label', 'ihm', adm_labels_ihm)]
             )
             # config.preprocess.label_shuffle
             all_labels_phe = np.random.permutation(adm_labels_phe.nonzero()[0]) if config.preprocess.label_shuffle else adm_labels_phe.nonzero()[0]
@@ -818,8 +781,7 @@ class ClinicalDataset(Dataset):
             
             all_labels_phe = []
             all_labels_ihm = []
-
-            all_codes=[]
+            all_codes = []
             all_ts = []
             all_covars = []
 
@@ -832,27 +794,25 @@ class ClinicalDataset(Dataset):
             start_token = False
             temp_code = []
 
-            covar_vars, covar_vals = [],[]
-            ts_vars, ts_vals = [],[]
+            covar_vars, covar_vals = [], []
+            ts_vars, ts_vals = [], []
             temp_label_phe = []
             temp_label_ihm = 0
             
             last_token = False
 
             for token in seq_tokens:
-                
                 if token == '<s>':
                     start_token = True
                 elif isinstance(token, tuple):
-                    
                     if token[0] == 'covar':
                         covar_vars.append(token[1])
                         covar_vals.append(token[2])
 
                     elif token[0] == 'label':
-                        if token[1]=='phe':
+                        if token[1] == 'phe':
                             temp_label_phe.append(token[2])
-                        elif token[1]=='ihm':
+                        elif token[1] == 'ihm':
                             temp_label_ihm = token[2]
 
                     elif token[0] == 'code':
@@ -862,38 +822,24 @@ class ClinicalDataset(Dataset):
                         ts_vars.append(token[1])
                         ts_vals.append(token[2])
 
-
                     elif token[0] == 'timestamp':
-                        
-                        current_ts.append((
-                            
-                            ts_vars,
-                            ts_vals,
-                            [token[2]]
-                        ))
-                        ts_vars, ts_vals = [],[]
+                        current_ts.append((ts_vars, ts_vals, [token[2]]))
+                        ts_vars, ts_vals = [], []
                 
                 elif token == '</covar>':
                     current_covar = (covar_vars, covar_vals)
-                    covar_vars, covar_vals   = [],[]
+                    covar_vars, covar_vals = [], []
 
                 elif token == '</label>':
-                    # current_label_phe = np.zeros(25, dtype=int)
-                    # set the labels
+                    # Set phenotype labels
                     for l in temp_label_phe:
                         current_label_phe[l] = 1
                     temp_label_phe = []
                     
-                    # current_label_ihm = 0
-                    # # if len(temp_label_ihm)>0:
+                    # Set in-hospital mortality label
                     current_label_ihm = temp_label_ihm
-                    temp_label_ihm =0
+                    temp_label_ihm = 0
                     
-                    
-                    # else:
-                    #     current_label_ihm = 0
-                    #     no_ihm +=1
-                        # print('ihm label not found')
                 elif token == '</code>':
                     current_code = temp_code
                     temp_code = []
