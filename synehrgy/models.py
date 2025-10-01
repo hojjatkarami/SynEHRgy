@@ -1,18 +1,11 @@
-"""
-
-
-"""
-
-
 import torch
 import torch.nn as nn
 from tqdm import tqdm
 from transformers.modeling_outputs import (
     BaseModelOutputWithPastAndCrossAttentions,
     CausalLMOutputWithCrossAttentions,
-
 )
-from transformers import  GPT2Config, GPT2LMHeadModel, GPT2Model
+from transformers import GPT2Config, GPT2LMHeadModel, GPT2Model
 
 from typing import Optional, Tuple, Union, List
 
@@ -27,12 +20,9 @@ import math
 import wandb
 from omegaconf import DictConfig, OmegaConf
 
-
 from synehrgy.config import HydraConfig
 
 logger = logging.get_logger(__name__)
-
-
 
 
 class PerplexityLoggingCallback(TrainerCallback):
