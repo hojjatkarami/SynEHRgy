@@ -260,72 +260,49 @@ def tokenize_dataset_raw(dataset_orig, config, tokenizer, truncate=True, split=F
             new_ehr.append(['</covar>'])
 
             # Add labels (ihm and phenotype)
-            new_ehr.append([('label', 'ihm', adm_labels_ihm)]
-            )
-            # config.preprocess.label_shuffle
+            new_ehr.append([('label', 'ihm', adm_labels_ihm)])
             all_labels_phe = np.random.permutation(adm_labels_phe.nonzero()[0]) if config.preprocess.label_shuffle else adm_labels_phe.nonzero()[0]
             
             for l in all_labels_phe:
-                new_ehr.append([('label','phe',l)])
+                new_ehr.append([('label', 'phe', l)])
 
-            
+            new_ehr.append(['</label>'])
 
-            new_ehr.append(
-                ['</label>']
-            )  # End Labels
-            
-
-
-            # # Add Covariates
-            # for c in new_covariates:
-            #     new_ehr.append(c + config.code_vocab_size + config.label_vocab_size)
-            
-
-        
             # Add code tokens
             for c in adm_codes:
-                new_ehr.append([('code',c)])
+                new_ehr.append([('code', c)])
             new_ehr.append(['</code>'])
             
-            # add ts tokens
+            # Add time series tokens
             if not ignore_ts:
-                for kk,v in enumerate(adm_ts):
+                for kk, v in enumerate(adm_ts):
                     if len(v[0]) == 0:
                         continue
                     var_ids = v[0]
                     disc_vals = v[1]
                     if ts_shuffle:
-                        # shuffle var_ids and disc_vals in the same way
-                        var_ids,disc_vals = zip(*random.sample(list(zip(var_ids,disc_vals)),len(var_ids)))
+                        # Shuffle var_ids and disc_vals in the same way
+                        var_ids, disc_vals = zip(*random.sample(list(zip(var_ids, disc_vals)), len(var_ids)))
 
+                    for var_id, disc_val in zip(var_ids, disc_vals):
+                        new_ehr.append([('ts', var_id, disc_val)])
 
-                    for var_id,disc_val in zip(var_ids,disc_vals):
-                        new_ehr.append([('ts',var_id,disc_val)])
+                    # Add timestamp
+                    new_ehr.append([('timestamp', var2id['Hours'], v[2][0])])
 
-                    # add time gap
-                    new_ehr.append([('timestamp',var2id['Hours'],v[2][0])])
-
-
-                    if i==0: # only first stay
+                    # Track horizons for first stay only
+                    if i == 0:
                         for i_h, hor in enumerate(adm_horizon):
                             if kk == hor:
                                 temp_horizon[i_h] = len(new_ehr)
-                               
 
                 new_ehr.append(['</ts>'])
 
+            # Add end admission token
+            new_ehr.append(['</adm>'])
 
-
-
-            # add end adm token
-            new_ehr.append(
-                ['</adm>']
-            )
-
-        # add end record token
-        new_ehr.append(
-            ['</s>']
-        )  # End Record
+        # Add end record token
+        new_ehr.append(['</s>'])
         
         new_ehr = tokenizer.encode(str(new_ehr).translate(translation_table))
 
@@ -334,9 +311,9 @@ def tokenize_dataset_raw(dataset_orig, config, tokenizer, truncate=True, split=F
             new_ehr = new_ehr[:config.n_ctx]
 
         if split:
-            # split into multiple records of size n_ctx
+            # Split into multiple records of size n_ctx
             while len(new_ehr) > config.n_ctx:
-                dataset.append(new_ehr[: config.n_ctx])
+                dataset.append(new_ehr[:config.n_ctx])
                 new_ehr = new_ehr[config.n_ctx :]
 
         dataset.append(new_ehr)
@@ -376,52 +353,36 @@ def mask_tokens(input_ids, mask_token_id, mask_probability=0.15):
         if random.random() < mask_probability:
             rand = random.random()
             if rand < 0.8:
-                masked_input_ids[i] = mask_token_id  # Replace with mask token
-            # elif rand < 0.9:
-            #     masked_input_ids[i] = random.randint(0, len(input_ids) - 1)  # Replace with random token
-            # else keep original token (10% probability)
+                masked_input_ids[i] = mask_token_id
 
     return masked_input_ids, labels
 
+
 def pad_inputs(inputs, config):
     max_len = config.n_ctx
-    # padded_inputs = []
-    # for i in inputs:
-    #     padded_inputs.append(i + [config.pad_token_id] * (max_len - len(i)))
     return inputs[:max_len] + [config.pad_token_id] * (max_len - len(inputs))
 
 
 class ClinicalDataset(Dataset):
-    def __init__(self, path_processed,  split='test', data=None, metadata=None):
-
+    def __init__(self, path_processed, split='test', data=None, metadata=None):
         self.path = path_processed
         self.split = split
 
-        if split=='synthetic':
-
+        if split == 'synthetic':
             self.data = data
-            
             self.is_synthetic = True
             self.is_tokenized = True
             self.is_discretized = True
-
             self.metadata = metadata
-            
             self.n_ctx = len(self.data[0])
-
-            
             print("[info] Loaded synthetic dataset. Please note that the dataset is already tokenized and discretized")
 
-        elif split in ['train','val','test']:
-
-            self.data = pickle.load(open(path_processed+f"/{split}Dataset.pkl", "rb"))
-            
-            self.metadata = pickle.load(open(path_processed+"/metadata2.pkl", "rb"))
-            
+        elif split in ['train', 'val', 'test']:
+            self.data = pickle.load(open(path_processed + f"/{split}Dataset.pkl", "rb"))
+            self.metadata = pickle.load(open(path_processed + "/metadata2.pkl", "rb"))
             self.is_synthetic = False
             self.is_discretized = False
             self.is_tokenized = False
-
 
         else:
             raise ValueError("split must be one of ['train','val','test','synthetic']")
@@ -480,23 +441,15 @@ class ClinicalDataset(Dataset):
             if random.random() < self.mask_probability:
                 rand = random.random()
                 if rand < 0.8:
-                    masked_input_ids[i] = self.mask_token_id  # Replace with mask token
-                # elif rand < 0.9:
-                #     masked_input_ids[i] = random.randint(0, len(input_ids) - 1)  # Replace with random token
-                # else keep original token (10% probability)
+                    masked_input_ids[i] = self.mask_token_id
 
         return masked_input_ids, labels
 
     def _pad_inputs(self, inputs):
         max_len = self.n_ctx
-        # padded_inputs = []
-        # for i in inputs:
-        #     padded_inputs.append(i + [config.pad_token_id] * (max_len - len(i)))
         return inputs[:max_len] + [self.pad_token_id] * (max_len - len(inputs))
 
-
-    
-    def get_index(self,mapping, key, value):
+    def get_index(self, mapping, key, value):
         # this function returns the index of the value in the mapping[key]
         possible_values = mapping[key]
         for i in range(len(possible_values) - 1):
@@ -505,16 +458,12 @@ class ClinicalDataset(Dataset):
         if value > possible_values[-1]:
             return len(possible_values) - 2
         print(f"{value} for {key} not in {possible_values}")
-        return int(len(possible_values)-2)
+        return int(len(possible_values) - 2)
 
-    def add_ts_data(self,df_ts):
+    def add_ts_data(self, df_ts):
         # this function discretizes the time series data
-
         adm_ts = []
-
         prev_time = 0
-        # FLAG_24 = False
-        # horizon = 1
         for time, mes in df_ts.iterrows():
             mes = {k:v for k,v in mes.items() if not pd.isnull(v)}
             # print(time)
@@ -538,23 +487,15 @@ class ClinicalDataset(Dataset):
                         new_values.append(self.get_index(self.discretization, var, float(val)))
                         new_labs.append(self.var2id[var])
                     except:
-                        # print(f"Error Cont: {var} {val}")
                         pass
             
-            
-
-            time_gap = self.get_index(self.discretization, "Hours", time-prev_time)
-
-                
+            time_gap = self.get_index(self.discretization, "Hours", time - prev_time)
             prev_time = time
-            if len(new_labs) == len(new_values) and len(new_labs)>0:
-                adm_ts.append((new_labs, new_values, [time_gap]))  # v[0] is empty
-            else:
-                # print("Error: different length of new_labs and new_values")
-                pass
+            if len(new_labs) == len(new_values) and len(new_labs) > 0:
+                adm_ts.append((new_labs, new_values, [time_gap]))
         return adm_ts
+    
     def discretize(self, redo=False, cache=True):
-
         # reading from metadata
         self.possibleValues = self.metadata['possibleValues']
         self.discretization = self.metadata['discretization']
@@ -563,7 +504,6 @@ class ClinicalDataset(Dataset):
         self.isCategorical = self.metadata['isCategorical']
         self.codeToId = self.metadata['codeToId']
         self.ts_info = self.metadata['ts_info']
-        
         
         if not self.is_discretized and not redo:
 
