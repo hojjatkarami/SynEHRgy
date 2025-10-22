@@ -12,6 +12,7 @@ temp
 workspace
 
 entry.sh
+.bin
 
 wandb
 save

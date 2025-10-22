@@ -1,0 +1,130 @@
+# Configuration for MIMIC-III data preparation
+
+# Paths
+project_path: "/home/hokarami/code/SynEHRgy"
+data_path: "/home/hokarami/data/homes/hokarami/data"
+mimic_path: "${data_path}/mimic3/mimic-iii-clinical-database-1.4/"
+path_root: "${data_path}/mimic3-benchmarks/data/root4"
+path_ihm: "${data_path}/mimic3-benchmarks/data/in-hospital-mortality2"
+path_phe: "${data_path}/mimic3-benchmarks/data/phenotyping2"
+path_data: "${project_path}/data/processed/mimic3-v2"
+
+# ICD code filtering
+min_th_icd: 5  # minimum threshold for an ICD code to be considered
+
+# Time series variables
+ts_cat:
+  - "Capillary refill rate"
+  - "Glascow coma scale eye opening"
+  - "Glascow coma scale motor response"
+  - "Glascow coma scale total"
+  - "Glascow coma scale verbal response"
+
+ts_cont:
+  - "Alanine aminotransferase"
+  - "Albumin"
+  - "Alkaline phosphate"
+  - "Anion gap"
+  - "Asparate aminotransferase"
+  - "Basophils"
+  - "Bicarbonate"
+  - "Bilirubin"
+  - "Blood urea nitrogen"
+  - "Calcium"
+  - "Chloride"
+  - "Creatinine"
+  - "Diastolic blood pressure"
+  - "Fraction inspired oxygen"
+  - "Glucose"
+  - "Heart Rate"
+  - "Hematocrit"
+  - "Hemoglobin"
+  - "Lactate"
+  - "Lymphocytes"
+  - "Mean blood pressure"
+  - "Mean corpuscular volume"
+  - "Monocytes"
+  - "Neutrophils"
+  - "Oxygen saturation"
+  - "Partial pressure of carbon dioxide"
+  - "Phosphate"
+  - "Platelets"
+  - "Potassium"
+  - "Prothrombin time"
+  - "Red blood cell count"
+  - "Respiratory rate"
+  - "Systolic blood pressure"
+  - "Temperature"
+  - "White blood cell count"
+  - "pH"
+
+ts_hours:
+  - "Hours"
+
+# Covariates
+covars_cat:
+  - "Gender"
+
+covars_cont:
+  - "Age"
+
+# Discretization parameters
+bin_type: "uniform"  # 'uniform' or 'quantile'
+n_bins_default: 10
+
+# Horizons (experimental)
+horizons:
+  - 12
+  - 24
+  - 36
+  - 48
+
+# Splits to process
+splits:
+  - "train"
+  - "val"
+  - "test"
+
+# Discretization bins
+age_bins:
+  - 18
+  - 20
+  - 25
+  - 30
+  - 35
+  - 40
+  - 45
+  - 50
+  - 55
+  - 60
+  - 65
+  - 70
+  - 75
+  - 80
+  - 85
+  - 90
+
+hours_bins:
+  - 0
+  - 0.5
+  - 1.5
+  - 2.5
+  - 3.5
+  - 6.5
+  - 10.5
+  - 16.5
+  - 26.5
+  - 48.0
+  - 48.1
+  - 60.1
+  - 80.1
+  - 110.1
+  - 150.1
+  - 200.1
+
+# Soft label parameters (experimental)
+soft_label_kernel_size: 7
+soft_label_sigma: 1.0
+
+# Plotting
+save_plots: true

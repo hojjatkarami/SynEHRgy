@@ -32,7 +32,26 @@ python -m mimic3models.split_train_val data/in-hospital-mortality2/
 
 ```
 
-You need to specify the path to above directory in the jupyter notebook `prepare_mimic.ipynb` and run the cells to preprocess the data and save it in the [`processed`](processed) folder. Then you should create a model configuration file in the [`../configs/data`](../configs/data) folder.
+### Option 1: Using Python Scripts (Recommended)
+
+We have converted the notebook into modular Python scripts with Hydra configuration management. This approach is more maintainable and reproducible.
+
+```bash
+cd scripts
+
+# 1. Install dependencies
+pip install -r requirements.txt
+
+# 2. Validate your setup
+python validate_setup.py
+
+# 3. Update paths in configs/data/prepare_mimic.yaml
+
+# 4. Run the entire pipeline
+python run_all.py
+```
+
+See [`scripts/QUICKSTART.md`](scripts/QUICKSTART.md) for a quick start guide and [`scripts/README.md`](scripts/README.md) for detailed documentation.
 
 ## Synthetic Data
 

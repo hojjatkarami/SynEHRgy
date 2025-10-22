@@ -1,0 +1,13 @@
+# Requirements for MIMIC-III data preparation scripts
+
+# Core dependencies
+hydra-core>=1.3.0
+omegaconf>=2.3.0
+pandas>=1.5.0
+numpy>=1.23.0
+scipy>=1.9.0
+plotly>=5.10.0
+tqdm>=4.64.0
+
+# Optional but recommended
+matplotlib>=3.5.0
