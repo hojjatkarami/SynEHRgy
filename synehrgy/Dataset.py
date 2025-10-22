@@ -1064,6 +1064,7 @@ class ClinicalDataset(Dataset):
     def save(self, name):
         if self.is_synthetic:
             assert not self.is_tokenized, "Please detokenize the data first"
+            os.makedirs(self.path, exist_ok=True)
             pickle.dump(
                 self.data,
                 open(f"{self.path}/{name}Dataset.pkl", "wb"),

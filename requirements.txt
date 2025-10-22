@@ -18,11 +18,12 @@ optuna
 hydra-core
 python-dotenv
 lightgbm
-synthcity
-pytrial
 transformers
 datasets
 accelerate
 evaluate
 einops
+tensorflow
+tf-keras
+# synthcity
 # rouge

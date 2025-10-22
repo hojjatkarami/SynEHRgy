@@ -13,6 +13,7 @@ workspace
 
 entry.sh
 .bin
+.venv
 
 wandb
 save

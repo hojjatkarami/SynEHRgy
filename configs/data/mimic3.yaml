@@ -1,2 +1,3 @@
-path: /mlodata1/hokarami/HALO_Inpatient/SynEHRgy/data/processed/mimic3
+project_path: "/home/hokarami/code/SynEHRgy"
+path: ${.project_path}/data/processed/mimic3-v2
 type: cont

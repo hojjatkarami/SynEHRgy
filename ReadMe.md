@@ -1,87 +1,193 @@
-# [**SynEHRgy**: Synthesizing Mixed-Type Structured Electronic Health Records using Decoder-Only Transformers](https://arxiv.org/abs/2411.13428)
+# SynEHRgy: Synthesizing Mixed-Type Structured Electronic Health Records
 
-[![](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Y-debug-sys/Diffusion-TS/blob/main/LICENSE)
-<img src="https://img.shields.io/badge/python-3.9.7-blue">
-<img src="https://img.shields.io/badge/pytorch-2.2.2-orange">
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Y-debug-sys/Diffusion-TS/blob/main/LICENSE)
+[![Python 3.9.7](https://img.shields.io/badge/python-3.9.7-blue)](https://www.python.org/downloads/)
+[![PyTorch 2.2.2](https://img.shields.io/badge/pytorch-2.2.2-orange)](https://pytorch.org/)
+[![Paper](https://img.shields.io/badge/arXiv-2411.13428-b31b1b.svg)](https://arxiv.org/abs/2411.13428)
 
-> **Abstract:** Generating synthetic Electronic Health Records (EHRs) offers significant potential for data augmentation, privacy-preserving data sharing, and improving machine learning model training. We propose a novel tokenization strategy tailored for structured EHR data, which encompasses diverse data types such as covariates, ICD codes, and irregularly sampled time series. Using a GPT-like decoder-only transformer model, we demonstrate the generation of high-quality synthetic EHRs. Our approach is evaluated using the MIMIC-III dataset, and we benchmark the fidelity, utility, and privacy of the generated data against state-of-the-art models.
+A decoder-only transformer model for generating high-quality synthetic Electronic Health Records (EHRs) using a novel tokenization strategy tailored for mixed-type structured data.
 
-## Contents
+## 📋 Table of Contents
 
+- [Overview](#overview)
+- [Key Features](#key-features)
 - [Installation](#installation)
-- [Datasets](#datasets)
+- [Dataset](#dataset)
 - [Quick Start](#quick-start)
-<!-- - [Citation](#citation) -->
+  - [Training](#training)
+  - [Generation](#generation)
+  - [Evaluation](#evaluation)
+- [Project Structure](#project-structure)
+- [Citation](#citation)
+- [License](#license)
+
+## Overview
+
+**SynEHRgy** generates synthetic Electronic Health Records using GPT-like decoder-only transformers. This approach addresses critical needs in healthcare AI:
+
+- **Data Augmentation**: Expand limited medical datasets for better model training
+- **Privacy Preservation**: Share realistic data without exposing patient information
+- **Research Enablement**: Provide accessible datasets for healthcare ML research
+
+Our model handles diverse EHR data types including covariates, ICD codes, and irregularly sampled time series from vital signs and laboratory measurements.
+
+## Key Features
+
+✨ **Novel Tokenization Strategy** for mixed-type structured EHR data  
+🏥 **Trained on MIMIC-III** dataset with ~42,000 patients  
+📊 **Handles Multiple Data Types**: covariates, ICD codes, irregular time series  
+🎯 **High-Quality Generation**: Benchmarked for fidelity, utility, and privacy  
+⚙️ **Flexible Configuration** using Hydra framework  
 
 ## Installation
 
-Clone the repository, create a virtual environment (`venv` or `conda`), and install the required packages using `pip`:
+### Prerequisites
+
+- Python 3.9.7+
+- Conda (recommended) or venv
+- CUDA-compatible GPU (recommended for training)
+
+### Setup
 
 ```bash
-# clone the repository
+# Clone the repository
 git clone https://github.com/hojjatkarami/SynEHRgy.git
 cd SynEHRgy
 
-# using virtualenv
-python3 -m venv synehrgy
-source synehrgy/bin/activate
-
-# OR using conda
-conda create --name synehrgy python=3.9.7 --yes
+# Create and activate conda environment (recommended)
+conda env create -f env.yaml
 conda activate synehrgy
 
-# install the required packages
-pip install -r requirements.txt
+# Alternative: using pip
+# pip install -r requirements.txt
 ```
 
-## Datasets
+### Configure Weights & Biases (Optional but Recommended)
 
-We use MIMIC-III dataset containing structured EHR data of approximately 42,000 patients. After preprocessing, we have 4,656 unique ICD codes, 41 irregularly-sampled time series from vital signs and laboratory variables, and a set of covariates. Please refer to the [data](data) folder for more details on the datasets.
+For experiment tracking and logging:
+
+1. Get your API key from [wandb.ai/authorize](https://wandb.ai/authorize)
+2. Create a `.env` file in the root directory:
+
+```bash
+echo "WANDB_API_KEY=your_api_key_here" > .env
+```
+
+## Dataset
+
+We use the **MIMIC-III** dataset containing structured EHR data from approximately 42,000 patients.
+
+**Preprocessed Data Includes:**
+- 4,656 unique ICD diagnostic codes
+- 41 irregularly-sampled time series (vital signs and lab variables)
+- Patient demographic and clinical covariates
+
+📂 See the [`data/`](data) folder for detailed dataset information and preprocessing steps.
 
 ## Quick Start
 
-We use `hydra-core` library for managing all configuration parameters. You can change them from [config](configs) folder.
-
-We highly recommend using `wandb` for logging and tracking the experiments. Get your API key from [wandb](https://wandb.ai/authorize). Create a `.env` file in the root directory and add the following line:
-
-```bash
-WANDB_API_KEY=your_api_key
-```
+All configuration is managed through [Hydra](https://hydra.cc/). Default settings are in the [`configs/`](configs) folder.
 
 ### Training
 
-The SynEHRgy model can easily be trained using the following command:
+Train the SynEHRgy model with default parameters:
 
 ```bash
-python train.py hparams.n_ctx=1024 hparams.mini_batch=64 run_name='synehrgy-mimic' data=mimic3 preprocess.bin_type=uniform model=gpt soft_labels=False
+python train.py \
+    hparams.n_ctx=256 \
+    hparams.mini_batch=64 \
+    run_name='synehrgy-mimic' \
+    data=mimic3 \
+    preprocess.bin_type=uniform \
+    model=gpt
 ```
 
-The configuration file is located at [`configs/configTrain.yaml`](configs/configTrain.yaml). The model will be saved at `saved_models/{MODEL_NAME}`.
+**Key Parameters:**
+- `n_ctx`: Context window size (default: 256)
+- `mini_batch`: Batch size for training
+- `run_name`: Experiment name for tracking
+- `bin_type`: Time series binning strategy (`uniform` or `quantile`)
+
+**Output:** Model checkpoints saved to `saved_models/{MODEL_NAME}/`
+
+**Configuration:** [`configs/configTrain.yaml`](configs/configTrain.yaml)
 
 ### Generation
 
-To generate synthetic data, you can use the following command:
+Generate synthetic patient records:
 
 ```bash
-python generate.py 'model="synehrgy-mimic"' n_samples=30000 bin_type=uniform fix_covars=False batch_size=1024
+python generate.py \
+    run_name="synehrgy-mimic" \
+    n_samples=30000 \
+    bin_type=uniform \
+    fix_covars=False \
+    batch_size=1024
 ```
 
-This will generate 30,000 synthetic patients using the trained model `synehrgy-mimic-hard-uni[v1]` and save the results in the ['data/synthetic'](data/synthetic/) folder. The configuration file is located at [`configs/configGenerate.yaml`](configs/configGenerate.yaml).
+**Parameters:**
+- `n_samples`: Number of synthetic patients to generate (default: 30,000)
+- `run_name`: Name of the run
+- `fix_covars`: Whether to fix covariates during generation
+- `batch_size`: Generation batch size
 
-**Alternatively, you can use the jupyter notebook ['Tutoria.ipynb'](Tutoria.ipynb) for a follow-along tutorial.**
+**Output:** Synthetic data saved to [`data/synthetic/`](data/synthetic/)
+
+**Configuration:** [`configs/configGenerate.yaml`](configs/configGenerate.yaml)
 
 ### Evaluation
 
-To replicate the results in the paper, you can use ['Results.ipynb'](Results.ipynb) notebook. The results will be saved in ['Results'](Results/) folder.
+Evaluate generated data quality using the provided notebook:
+
+```bash
+jupyter notebook Results.ipynb
+```
+
+This notebook reproduces all results from the paper, including:
+- **Fidelity Metrics**: Statistical similarity to real data
+- **Utility Metrics**: Downstream task performance
+- **Privacy Metrics**: Patient re-identification risk
+
+**Output:** Results and visualizations saved to [`Results/`](Results/)
+
+## Project Structure
+
+```
+SynEHRgy/
+├── configs/              # Hydra configuration files
+│   ├── configTrain.yaml
+│   └── configGenerate.yaml
+├── data/                 # Dataset folder
+│   └── synthetic/        # Generated synthetic data
+├── saved_models/         # Trained model checkpoints
+├── Results/              # Evaluation results and plots
+├── train.py              # Training script
+├── generate.py           # Generation script
+├── Tutorial.ipynb        # Interactive tutorial
+├── Results.ipynb         # Evaluation notebook
+├── env.yaml              # Conda environment file
+└── ReadMe.md             # This file
+```
 
 ## Citation
 
-If you find this repo useful, please cite our paper via
+If you use SynEHRgy in your research, please cite our paper:
 
 ```bibtex
 @inproceedings{karamisynehrgy,
   title={SynEHRgy: Synthesizing Mixed-Type Structured Electronic Health Records using Decoder-Only Transformers},
   author={Karami, Hojjat and Atienza, David and Paraschiv-Ionescu, Anisoara},
-  booktitle={GenAI for Health: Potential, Trust and Policy Compliance}
+  booktitle={GenAI for Health: Potential, Trust and Policy Compliance},
+  year={2024}
 }
 ```
+
+**Paper:** [https://arxiv.org/abs/2411.13428](https://arxiv.org/abs/2411.13428)
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+**Questions or Issues?** Please open an issue on [GitHub](https://github.com/hojjatkarami/SynEHRgy/issues).
