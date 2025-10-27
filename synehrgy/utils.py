@@ -18,59 +18,8 @@ import itertools
 import wandb
 
 
-# def modify_dataset(dataset_orig):
-
-#     n_before = len(dataset_orig)
-#     dataset_orig = [
-#         patient
-#         for patient in dataset_orig
-#         if sum([len(visit) for visit in patient["visits"]])
-#         + len(patient["visits"])
-#         + config.label_vocab_size
-#         + 3
-#         < config.n_ctx
-#     ]
-#     n_after = len(dataset_orig)
-#     print(f"Removed {n_before - n_after} patients from dataset")
-
-#     dataset = []
-#     for orig_ehr in dataset_orig:
-#         new_ehr = [config.total_vocab_size - 1] * config.n_ctx  # Pad Codes
-#         new_ehr[0] = config.code_vocab_size + config.label_vocab_size  # Start Record
-#         idx = 1
-
-#         # Add Labels
-#         for l in orig_ehr["labels"].nonzero()[0]:
-#             new_ehr[idx] = l + config.code_vocab_size
-#             idx += 1
-
-#         new_ehr[idx] = (
-#             config.code_vocab_size + config.label_vocab_size + 1
-#         )  # End Labels
-#         idx += 1
-
-#         # Add Visits
-#         for v in orig_ehr["visits"]:
-#             for c in v:
-
-#                 new_ehr[idx] = c
-#                 idx += 1
-#             new_ehr[idx] = (
-#                 config.code_vocab_size + config.label_vocab_size + 2
-#             )  # End Visit
-#             idx += 1
-
-#         new_ehr[idx] = (
-#             config.code_vocab_size + config.label_vocab_size + 3
-#         )  # End Record
-#         dataset.append(new_ehr)
-#     return dataset
-
-
 def get_batch(loc, batch_size, dataset):
-
-    ehr = dataset[loc : loc + batch_size]
-
+    ehr = dataset[loc:loc + batch_size]
     batch_ehr = np.array(ehr)
     return batch_ehr
 
