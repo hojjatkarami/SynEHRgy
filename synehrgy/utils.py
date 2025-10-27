@@ -1042,6 +1042,60 @@ def plot_tsne2(data:dict, N: int = 10000) -> go.Figure:
 
 
 
+def plot_tsne3(data:dict, N: int = 10000) -> go.Figure:
+    # for t-SNE
+    # third party
+    from openTSNE import TSNE
+
+    X = []
+    for k in data.keys():
+        # random sample
+        random_indices = np.random.choice(data[k].shape[0], size=N, replace=False)
+        X.append( data[k][random_indices, :] )
+
+    X = np.concatenate(X, axis=0)  # [2*bs, hidden_dim]
+
+    tsne = TSNE(n_components=2, perplexity=30, learning_rate=10, n_jobs=4)
+
+    X_tsne = tsne.fit_transform(X)  # [2*bs, 2]
+
+    # N2 = int(X.shape[0] / 2)
+
+    fig_tsne = go.Figure()
+
+    for k in data.keys():
+        # print(X_tsne.shape)
+        
+        _ = fig_tsne.add_trace(
+            go.Scatter(x=X_tsne[:N, 0], y=X_tsne[:N, 1], mode="markers", name=k)
+        )
+        # set opacity for each name
+
+
+
+
+        X_tsne = X_tsne[N:]
+    
+    # set opacity
+    fig_tsne.update_traces(marker=dict(opacity=0.75, size=5))
+
+    # set marker border width
+    # fig_tsne.update_traces(marker=dict(line=dict(width=1, color='DarkSlateGrey')))
+
+    # fig_tsne.show()
+
+    # # plot histogram
+    # REAL2 = REAL[:,3].flatten()
+    # FAKE2 = FAKE[:,3].flatten()
+    # fig_hist = go.Figure()
+    # _ = fig_hist.add_trace(go.Histogram(x=REAL2, nbinsx=100, name='real'))
+    # _ = fig_hist.add_trace(go.Histogram(x=FAKE2, nbinsx=100, name='fake'))
+    # fig_hist.show()
+
+    return fig_tsne
+
+
+
 
 def plot_corr(
     df_train_real: pd.DataFrame,
@@ -2517,18 +2571,18 @@ def compute_utility2(
         X = pd.concat([X_train_frac, X_fake_frac])
         y = pd.concat([y_train_frac, y_fake_frac])
 
-        print(X_train_frac.shape, X_fake_frac.shape, X.shape)
-        print(y_train_frac.shape, y_fake_frac.shape, y.shape)
+
+        print(f"\tTraining with real: {real_ratio}, fake: {fake_ratio}")
         if y.shape[1]>1:
-            print('multi-label classifer')
+            print('\t\tmulti-label classifer')
             multi_label = True
-            model = OneVsRestClassifier(lgb.LGBMClassifier(random_state=42,  verbosity=1))
+            model = OneVsRestClassifier(lgb.LGBMClassifier(random_state=42,  verbose=-1))
 
         else:
-            print('binary classifer')
-            model = lgb.LGBMClassifier(random_state=42,  verbosity=1)
+            print('\t\tbinary classifer')
+            model = lgb.LGBMClassifier(random_state=42,  verbose=-1)
             y=y.values.flatten()
-        print(X.shape, y.shape)
+        # print(X.shape, y.shape)
         model.fit(X, y)
 
         # eval model
@@ -2536,7 +2590,6 @@ def compute_utility2(
         y_score = model.predict_proba(X_test)
         y_true = y_test.values
 
-        print(y_pred.shape, y_score.shape, y_true.shape)
 
         if multi_label:
             metrics.update({
@@ -2570,22 +2623,23 @@ def compute_utility2(
             )
 
 
-    if wandb.run:
+    # if wandb.run:
 
-        wandb.log( {f"AUG/{k}": v for k, v in metrics.items()})
+    #     wandb.log( {f"AUG/{k}": v for k, v in metrics.items()})
 
-        if (1,0) in metrics:
-            wandb.log({
-                f'TRTR/{k}':v for k,v in metrics[(1,0)].items()
-            })
+    #     if (1,0) in metrics:
+    #         wandb.log({
+    #             f'TRTR/{k}':v for k,v in metrics[(1,0)].items()
+    #         })
         
-        if (0,1) in metrics:
-            wandb.log({
-                f'TSTR/{k}':v for k,v in metrics[(0,1)].items()
-            })
+    #     if (0,1) in metrics:
+    #         wandb.log({
+    #             f'TSTR/{k}':v for k,v in metrics[(0,1)].items()
+    #         })
+
 
     # log to wandb or plot
-    plot_metrics()
+    # plot_metrics()
 
     return metrics
 

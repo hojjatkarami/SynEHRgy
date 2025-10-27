@@ -55,11 +55,13 @@ git clone https://github.com/hojjatkarami/SynEHRgy.git
 cd SynEHRgy
 
 # Create and activate conda environment (recommended)
-conda env create -f env.yaml
+conda env create -f synehrgy.yaml
 conda activate synehrgy
 
-# Alternative: using pip
-# pip install -r requirements.txt
+# install synehrgy
+pip install -e .
+
+
 ```
 
 ### Configure Weights & Biases (Optional but Recommended)
@@ -136,6 +138,26 @@ python generate.py \
 **Configuration:** [`configs/configGenerate.yaml`](configs/configGenerate.yaml)
 
 ### Evaluation
+
+First, create a new environment as `synthcity` module have compatibility issues with the latest versions of some libraries.
+
+```bash
+conda create -n synehrgy_results python=3.12
+conda activate synehrgy_results
+pip install synthcity==0.2.12 Levenshtein
+pip install ipykernel omegaconf plotly nbformat>=4.2.0
+pip install --upgrade kaleido
+pip install opacus==1.5.3
+pip install openTSNE
+
+
+
+conda env create -f synehrgy_results.yaml
+conda activate synehrgy_results
+
+# install synehrgy
+pip install -e .
+```
 
 Evaluate generated data quality using the provided notebook:
 

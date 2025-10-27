@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synehrgy"
+version = "0.0.0"
+description = "SynEHRgy: synthetic EHR modeling package"
+readme = "ReadMe.md"
+requires-python = ">=3.8"
+keywords = ["EHR", "synthetic data", "healthcare", "deep learning"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/hojjatkarami/SynEHRgy"
+Repository = "https://github.com/hojjatkarami/SynEHRgy"
+
+[tool.setuptools]
+packages = { find = { where = ["."], include = ["synehrgy*"] } }

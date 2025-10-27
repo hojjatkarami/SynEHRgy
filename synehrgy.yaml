@@ -1,0 +1,45 @@
+name: synehrgy
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - jupyterlab
+  - ipykernel
+  - notebook
+  - plotly
+  - bokeh
+  - statsmodels
+  - pip
+  - pip:
+      - scipy
+      - kaleido
+      - tqdm
+      - nbformat
+      - tensorboard
+      - torch
+      - torchvision
+      - torchaudio
+      - wandb
+      - optuna
+      - hydra-core
+      - python-dotenv
+      - lightgbm
+      - xgboost
+      - catboost
+      - transformers
+      - datasets
+      - accelerate
+      - evaluate
+      - einops
+      - openai
+      - ray
+      - loguru
+      - sktime[dl]
+      - tensorflow
+      - tf-keras
