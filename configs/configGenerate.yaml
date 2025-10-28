@@ -1,5 +1,5 @@
 ###########
-run_name: "synehrgy-mimic" # this model should exist in the saved_models folder
+run_name: "mimic3-qwen-s" # this model should exist in the saved_models folder
 fix_covars: False # [Under development] this is used for the forecasting task. a conditional generation method.
 bin_type: uniform
 #######

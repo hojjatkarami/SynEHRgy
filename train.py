@@ -74,10 +74,16 @@ def main(cfg: DictConfig):
 
 
     # build the model
-    model = SynEHRgy(config).to(device)
+    trainer = SynEHRgy(cfg,
+                       config,
+                     train_dataset=train_dataset,
+                     eval_dataset=eval_dataset,
+                     run_name=RUN_NAME
+                     )
 
-    # train the model
-    model.fit(cfg, train_dataset, eval_dataset, run_name=RUN_NAME)
+    trainer.train()
+    # # train the model
+    # model.fit(cfg, train_dataset, eval_dataset, run_name=RUN_NAME)
 
 
 

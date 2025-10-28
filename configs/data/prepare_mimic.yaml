@@ -1,13 +1,14 @@
 # Configuration for MIMIC-III data preparation
 
 # Paths
+data_version: "mimic3-v2"
 project_path: "/home/hokarami/code/SynEHRgy"
 data_path: "/home/hokarami/data/homes/hokarami/data"
 mimic_path: "${data_path}/mimic3/mimic-iii-clinical-database-1.4/"
 path_root: "${data_path}/mimic3-benchmarks/data/root4"
 path_ihm: "${data_path}/mimic3-benchmarks/data/in-hospital-mortality2"
 path_phe: "${data_path}/mimic3-benchmarks/data/phenotyping2"
-path_data: "${project_path}/data/processed/mimic3-v2"
+path_data: "${project_path}/data/processed/${data_version}"
 
 # ICD code filtering
 min_th_icd: 5  # minimum threshold for an ICD code to be considered

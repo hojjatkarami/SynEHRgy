@@ -17,3 +17,6 @@ dependencies:
       - opacus==1.5.3
       - openTSNE
       - lightgbm
+      - hydra-core
+      - wandb
+      - python-dotenv

@@ -1,5 +1,6 @@
 defaults:
   - data: mimic3
+  - model_config:
 
   - _self_
 
@@ -45,3 +46,23 @@ hparams:
 loss:
   soft_labels: False
   n_next: 1
+
+
+# ==== Training ====
+training:
+  # we also have training configs in model_config.training
+
+  # generic
+  per_device_eval_batch_size: 64
+  eval_accumulation_steps: 1
+  prediction_loss_only: true
+
+  logging_steps: 25
+  save_total_limit: 20
+  eval_strategy: "steps"
+  eval_steps: 250
+
+  max_steps: -1 # will be computed if budget is set
+  num_train_epochs: 2 # will be ignored if max_steps > 0
+
+  dataloader_num_workers: 8

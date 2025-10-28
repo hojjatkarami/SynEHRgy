@@ -55,20 +55,22 @@ def main(gen_cfg: DictConfig):
     RUN_NAME = gen_cfg.run_name
 
     
-    config_path = f"./saved_models/{RUN_NAME}_config.yaml"
+    # config_path = f"./saved_models/{RUN_NAME}_config.yaml"
     model_path = f"./saved_models/{RUN_NAME}"
     syn_folder = "./data/synthetic"
 
     
-    # loading the model
-    model = SynEHRgy.load_model(config_path, model_path).to(device)
 
-    config = HydraConfig(OmegaConf.load(f"{config_path}"))
+    
+    # loading the model
+    trainer = SynEHRgy.from_pretrained(model_path)
+
+    config = pickle.load(open(f"{model_path}/config.pkl", "rb"))
     metadata = pickle.load(open(config.dataset_folder+"/metadata2.pkl", "rb"))
 
 
     # generate synthetic data
-    synthetic_data_tokenized = model.generate_synthetic_dataset(gen_cfg)
+    synthetic_data_tokenized = trainer.generate_synthetic_dataset(gen_cfg)
 
 
     # create a ClinicalDataset object

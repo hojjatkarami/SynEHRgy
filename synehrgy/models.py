@@ -12,7 +12,7 @@ from transformers.modeling_outputs import (
     CausalLMOutputWithCrossAttentions,
 
 )
-from transformers import  GPT2Config, GPT2LMHeadModel, GPT2Model
+from transformers import  GPT2Config, GPT2LMHeadModel, GPT2Model, Qwen2Config, Qwen2ForCausalLM, Qwen2Tokenizer
 
 from typing import Optional, Tuple, Union, List
 
@@ -366,198 +366,85 @@ class GPT2ModelCustom(GPT2Model):
 
 
 
-class SynEHRgy(GPT2LMHeadModel):
-    def __init__(self, config):
-        cfg = GPT2Config(
-            vocab_size=config.total_vocab_size,
-            n_positions=config.n_positions,
-            n_ctx=config.n_ctx,
-            n_embd=config.n_embd,
-            n_layer=config.n_layer,
-            n_head=config.n_head,
-            eos_token_id=config.end_record_token_id,
-            pad_token_id=config.pad_token_id,
-            start_token_id=config.start_token_id,
-            # end_label_token_id=config.end_label_token_id,
-            # end_visit_token_id=config.end_visit_token_id,
-            # anc_vocab_size=config.anc_vocab_size,
-            # code_vocab_size=config.code_vocab_size,
-            n_next=config.n_next,
-            # strategy=config.strategy,
-            # w_class=config.w_class,
-            # emb_method=config.emb_method,
-        )
-        super().__init__(cfg)
-        self.config = cfg
+class SynEHRgy(Trainer):
+    def __init__(self, config_main, config, train_dataset=None, eval_dataset=None, run_name=None, model=None):
+        self.config = config
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.run_name = run_name
 
-        self.transformer = GPT2Model(cfg)
-
-        # if config.use_pretrained:
-        #     print("Loading GPT2 pretrained model")
-        #     # config = transformers.GPT2Config.from_pretrained('gpt2')
-        #     self.transformer.h = GPT2Model.from_pretrained("gpt2").h
+        if model is None:
+            if config_main.model_config.config_class == "GPT2Config":
 
 
+                cfg = GPT2Config(
+                    n_positions=config_main.model_config.config.n_positions,
+                    n_ctx=config_main.model_config.config.n_ctx,
+                    n_embd=config_main.model_config.config.n_embd,
+                    n_layer=config_main.model_config.config.n_layer,
+                    n_head=config_main.model_config.config.n_head,
+                    
+                    vocab_size=config.total_vocab_size,
+                    eos_token_id=config.end_record_token_id,
+                    pad_token_id=config.pad_token_id,
+                    start_token_id=config.start_token_id,
+                    # end_label_token_id=config.end_label_token_id,
+                    # end_visit_token_id=config.end_visit_token_id,
+                    # anc_vocab_size=config.anc_vocab_size,
+                    # code_vocab_size=config.code_vocab_size,
+                    # n_next=config.n_next,
+                    # strategy=config.strategy,
+                    # w_class=config.w_class,
+                    # emb_method=config.emb_method,
+                )
+                model = GPT2LMHeadModel(cfg).to(self.device)
+            elif config_main.model_config.config_class == "Qwen2Config":
 
-        # self.lm_head = nn.Linear(config.n_embd, config.vocab_size)
-        # self.fc1 = nn.Linear(config.vocab_size, config.vocab_size, bias=False)
-        # set padding token id
+                cfg = Qwen2Config(
+                    **config_main.model_config.config,
+                    vocab_size=config.total_vocab_size,
+                    eos_token_id=config.end_record_token_id,
+                    pad_token_id=config.pad_token_id,
+                    start_token_id=config.start_token_id,
+                    
+                )
+                model = Qwen2ForCausalLM(cfg).to(self.device)
+        
+        
+        if train_dataset is None:
+            self.model = model
+            return
 
-
-        # multi token prediction head
-        self.heads = nn.ModuleList()
-        for _ in range(cfg.n_next):
-            self.heads.append(nn.Linear(cfg.n_embd, cfg.vocab_size))
+        PATH_SAVE_MODEL = f"saved_models/{run_name}"
+        
+        # assert train_dataset.is_tokenized == True, "train_dataset must be tokenized"
+        # assert eval_dataset.is_tokenized == True, "eval_dataset must be tokenized"
 
         
 
-        # # for soft labels
-        # ppp = "/mlodata1/hokarami/HALO_Inpatient/continuous_variables/data/mimic3-bigicd"
-        # self.M_soft_labels = torch.tensor(pickle.load(open(f"{ppp}/metadata2.pkl", "rb"))['M_soft_labels'], dtype=torch.float32, requires_grad=False).to('cuda')
-
-        self.soft_labels = config.soft_labels
-
-
-
-    # def forward(
-    #     self,
-    #     input_ids: Optional[torch.LongTensor] = None,
-    #     past_key_values: Optional[Tuple[Tuple[torch.Tensor]]] = None,
-    #     attention_mask: Optional[torch.FloatTensor] = None,
-    #     token_type_ids: Optional[torch.LongTensor] = None,
-    #     position_ids: Optional[torch.LongTensor] = None,
-    #     head_mask: Optional[torch.FloatTensor] = None,
-    #     inputs_embeds: Optional[torch.FloatTensor] = None,
-    #     encoder_hidden_states: Optional[torch.Tensor] = None,
-    #     encoder_attention_mask: Optional[torch.FloatTensor] = None,
-    #     labels: Optional[torch.LongTensor] = None,
-    #     use_cache: Optional[bool] = None,
-    #     output_attentions: Optional[bool] = None,
-    #     output_hidden_states: Optional[bool] = None,
-    #     return_dict: Optional[bool] = None,
-    # ) -> Union[Tuple, CausalLMOutputWithCrossAttentions]:
-    #     r"""
-    #     labels (`torch.LongTensor` of shape `(batch_size, sequence_length)`, *optional*):
-    #         Labels for language modeling. Note that the labels **are shifted** inside the model, i.e. you can set
-    #         `labels = input_ids` Indices are selected in `[-100, 0, ..., config.vocab_size]` All labels set to `-100`
-    #         are ignored (masked), the loss is only computed for labels in `[0, ..., config.vocab_size]`
-    #     """
-    #     return_dict = (
-    #         return_dict if return_dict is not None else self.config.use_return_dict
-    #     )
-
-    #     transformer_outputs = self.transformer(
-    #         input_ids,
-    #         past_key_values=past_key_values,
-    #         attention_mask=attention_mask,
-    #         token_type_ids=token_type_ids,
-    #         position_ids=position_ids,
-    #         head_mask=head_mask,
-    #         inputs_embeds=inputs_embeds,
-    #         encoder_hidden_states=encoder_hidden_states,
-    #         encoder_attention_mask=encoder_attention_mask,
-    #         use_cache=use_cache,
-    #         output_attentions=output_attentions,
-    #         output_hidden_states=output_hidden_states,
-    #         return_dict=return_dict,
-    #     )
-    #     hidden_states = transformer_outputs[0]
-
-    #     # Set device for model parallelism
-    #     if self.model_parallel:
-    #         torch.cuda.set_device(self.transformer.first_device)
-    #         hidden_states = hidden_states.to(self.lm_head.weight.device)
-    #     loss = None
-
-
-    #     loss_fct = nn.CrossEntropyLoss(ignore_index=self.config.pad_token_id)
-
-    #     if self.config.n_next > 1: # for multi token prediction
-    #         z = hidden_states.detach()
-    #         z.requires_grad = True
-    #         for i in range(self.config.n_next):
-    #             logits = self.heads[i](z)
-    #             if i == 0:
-    #                 lm_logits = logits
-    #             if labels is not None:
-    #                 # move labels to correct device to enable model parallelism
-    #                 labels = labels.to(logits.device)
-    #                 # Shift so that tokens < n predict n
-    #                 shift_logits = logits[..., : -(i + 1), :].contiguous()
-    #                 shift_labels = labels[..., (i + 1) :].contiguous()
-    #                 # Flatten the tokens
-
-    #                 loss_h = loss_fct(
-    #                     shift_logits.view(-1, shift_logits.size(-1)),
-    #                     shift_labels.view(-1),
-    #                 )
-    #                 if self.training:
-    #                     loss_h.backward()
-    #                 if i == 0:
-    #                     loss = loss_h
-
-    #         if self.training:
-    #             hidden_states.backward(z.grad)
-    #     else:
-    #         lm_logits = self.lm_head(hidden_states)  # + self.fc1(input_visits)
-
-    #         loss = None
-    #         if labels is not None:
-    #             # move labels to correct device to enable model parallelism
-    #             labels = labels.to(lm_logits.device)
-
-    #             shift_labels = labels[..., 1:].contiguous()
-    #             shift_logits = lm_logits[..., :-1, :].contiguous()
-
-    #             # alternative loss
-    #             if self.training and self.soft_labels:
-    #                 mask = shift_labels.view(-1) != self.config.pad_token_id  # True where we want to keep, False where to ignore
-    #                 mask = mask.float()  # Convert mask to float
-    #                 target_soft = self.M_soft_labels[shift_labels.view(-1)] * mask[:, None]
-
-    #                 loss =  nn.CrossEntropyLoss(reduction='sum')(shift_logits.view(-1, shift_logits.size(-1)), target_soft)/mask.sum()
-    #             else:
-
-    #                 loss = loss_fct(
-    #                     shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1)
-    #                 )
-
-    #     if not return_dict:
-    #         output = (lm_logits,) + transformer_outputs[1:]
-    #         return ((loss,) + output) if loss is not None else output
-
-    #     return CausalLMOutputWithCrossAttentions(
-    #         loss=loss,
-    #         logits=lm_logits,
-    #         past_key_values=transformer_outputs.past_key_values,
-    #         hidden_states=transformer_outputs.hidden_states,
-    #         attentions=transformer_outputs.attentions,
-    #         cross_attentions=transformer_outputs.cross_attentions,
-    #     )
-    
-
-
-    def fit(self,cfg, train_dataset, eval_dataset, run_name='TEST'):
+        os.makedirs(PATH_SAVE_MODEL, exist_ok=True)
+        # save to wandb
+        if wandb.run is not None:
+            # save the config in pkl file
+            import pickle
+            with open(f"{PATH_SAVE_MODEL}/config.pkl", "wb") as f:
+                pickle.dump(config, f)
         
-        PATH_SAVE_MODEL = "saved_models"
         
-        assert train_dataset.is_tokenized == True, "train_dataset must be tokenized"
-        assert eval_dataset.is_tokenized == True, "eval_dataset must be tokenized"
+            # save config_main
+            OmegaConf.save(config=config_main, resolve=True, f=f"{PATH_SAVE_MODEL}/config_main.yaml")
 
-        # save the config in yaml file
-        OmegaConf.save(config=cfg, resolve=True, f=f"{PATH_SAVE_MODEL}/{run_name}_config.yaml")
-   
-
-
-
+            wandb.run.save(f"{PATH_SAVE_MODEL}/config.yaml")
+            wandb.run.save(f"{PATH_SAVE_MODEL}/config_main.yaml")
+        
+        
         training_args = TrainingArguments(
-            output_dir=f'{PATH_SAVE_MODEL}/{run_name}',
+            output_dir=f'{PATH_SAVE_MODEL}',
             overwrite_output_dir=True,
-            num_train_epochs=cfg.train.epochs,
-            per_device_train_batch_size=cfg.hparams.mini_batch,
-            per_device_eval_batch_size=cfg.hparams.mini_batch,
+            num_train_epochs=config_main.train.epochs,
+            per_device_train_batch_size=config_main.hparams.mini_batch,
+            per_device_eval_batch_size=config_main.hparams.mini_batch,
             learning_rate=3e-4,
-            gradient_accumulation_steps = int(cfg.hparams.batch_size / cfg.hparams.mini_batch),
+            gradient_accumulation_steps = int(config_main.hparams.batch_size / config_main.hparams.mini_batch),
             eval_strategy="epoch",
             save_strategy="epoch",
             save_steps=100,
@@ -582,27 +469,43 @@ class SynEHRgy(GPT2LMHeadModel):
             
 
         )
-        trainer = Trainer(
-            model=self,
+        # trainer = Trainer(
+        #     model=self,
+        #     args=training_args,
+        #     train_dataset=train_dataset,
+        #     eval_dataset=eval_dataset,
+        #     callbacks=[
+        #         PerplexityLoggingCallback(),
+        #         EarlyStoppingCallback(early_stopping_patience=cfg.train.patience),  # early stopping callback
+        #         ],
+        # )
+
+        super().__init__(
+            model=model,
             args=training_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
+
             callbacks=[
                 PerplexityLoggingCallback(),
-                EarlyStoppingCallback(early_stopping_patience=cfg.train.patience),  # early stopping callback
+                EarlyStoppingCallback(early_stopping_patience=config_main.train.patience),  # early stopping callback
                 ],
+
+            # data_collator=self.collate_fn_name,
+            # compute_metrics=self._compute_metrics,
+            # callbacks=callbacks,
+            # processing_class=self.processing_class,
+            # compute_loss_func=self.compute_loss_func,
         )
+
         
-
-        trainer.train()
-
-        pass
+        
 
 
 
     def generate_synthetic_dataset(self,cfg):
-
-        self.eval()
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.model.eval()
 
         synthetic_ehr_dataset = []
         selected_ids=[]
@@ -710,57 +613,94 @@ class SynEHRgy(GPT2LMHeadModel):
         
         with torch.no_grad():
 
-            ehr = self.generate(
+            print('lets generate',context.shape, self.config.n_ctx, self.model.device)
+            ehr = self.model.generate(
                 input_ids = context,
                 attention_mask=attention_mask,
                 max_length=self.config.n_ctx,
                 num_return_sequences=1,
                 **generation_config,
                 # pad_token_id=pad_token_id,
+                use_cache=True,
             )
+            print('done generate')
 
         return ehr.cpu().detach().numpy()
 
     @staticmethod
-    def load_model(config_path, model_path):
+    def from_pretrained(model_path):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        config = OmegaConf.load(f"{config_path}")
-        config = HydraConfig(config)
+        import pickle
+        config = pickle.load(open(f"{model_path}/config.pkl", "rb"))
+        
+        
+        config_main = OmegaConf.load(f"{model_path}/config_main.yaml")
 
-        instance = SynEHRgy(config)
+        from transformers import AutoModelForCausalLM
+
+        
+        base_path = model_path  # your main directory
+        checkpoints = [d for d in os.listdir(base_path) if d.startswith("checkpoint-")]
+        if not checkpoints:
+            last_checkpoint = base_path
+        else:
+            # Sort by step number
+            checkpoints = sorted(checkpoints, key=lambda x: int(x.split("-")[-1]))
+            last_checkpoint = os.path.join(base_path, checkpoints[-1])
+
+        print(f"Loading from: {last_checkpoint}")
+        model = AutoModelForCausalLM.from_pretrained(last_checkpoint).to(device)
+        
+        return SynEHRgy(config_main,
+                        config,
+                        train_dataset=None,
+                        eval_dataset=None,
+                        run_name="IGNORE",
+                        model=model
+                        )
+        
+
+        # instance = SynEHRgy(config_main,
+        #                config,
+        #              train_dataset=None,
+        #              eval_dataset=None,
+        #              run_name="IGNORE",
+        #              model=model
+        #              )
 
 
-        # loading the model
-        if os.path.exists(f"{model_path}"):
-            print("[info] Loading model from ", model_path)
-            # find all checkpointns
-            checkpoints = [
-                f
-                for f in os.listdir(f"{model_path}")
+        # # loading the model
+        # if os.path.exists(f"{model_path}"):
+        #     print("[info] Loading model from ", model_path)
+        #     # find all checkpointns
+        #     checkpoints = [
+        #         f
+        #         for f in os.listdir(f"{model_path}")
             
-            ]
+        #     ]
 
-            print("[info] Checkpoints found: ", checkpoints[0])
+        #     print("[info] Checkpoints found: ", checkpoints[0])
 
-            # model = Bart9Model(config).to(device)
+        #     # model = Bart9Model(config).to(device)
 
-            try:
-                # Load the weights from the safetensors file
-                from safetensors import safe_open
-                checkpoint_path = f"{model_path}/{checkpoints[0]}/model.safetensors"
-                with safe_open(checkpoint_path, framework="pt", device='cuda') as f:
-                    state_dict = {k: f.get_tensor(k) for k in f.keys()}
+        #     try:
+        #         # Load the weights from the safetensors file
+        #         from safetensors import safe_open
+        #         checkpoint_path = f"{model_path}/{checkpoints[0]}/model.safetensors"
+        #         with safe_open(checkpoint_path, framework="pt", device='cuda') as f:
+        #             state_dict = {k: f.get_tensor(k) for k in f.keys()}
 
-                instance.load_state_dict(state_dict)
-            except:
-                print("use bin file for loading model")
-                checkpoint_path = f"{model_path}/{checkpoints[0]}/pytorch_model.bin"
-                state_dict = torch.load(checkpoint_path)
-                instance.load_state_dict(state_dict)
+        #         instance.load_state_dict(state_dict)
+        #     except:
+        #         print("use bin file for loading model")
+        #         checkpoint_path = f"{model_path}/{checkpoints[0]}/pytorch_model.bin"
+        #         state_dict = torch.load(checkpoint_path)
+        #         instance.load_state_dict(state_dict)
 
-        return instance
+        # return instance
 
-        pass
+        # pass
 
 
 

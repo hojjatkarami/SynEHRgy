@@ -1,0 +1,108 @@
+# Configuration for results generation
+defaults:
+  - _self_
+
+# Dataset name to evaluate (can be synthetic model name or real split like 'train', 'test', 'val')
+# Supported baseline models:
+#   - synehrgy-mimic-v2 (SynEHRgy)
+#   - pehrBig (PromptEHR - special format, ICD codes only)
+#   - halo-icd-big (HALO - ICD codes)
+#   - timehr (TimeHR - time series)
+#   - rtsgan-phe (RTSGAN - time series, requires pre-processed files)
+data_name: synehrgy-mimic-v2
+
+
+wandb:
+  project: SynEHRgy-eval
+
+# Data paths
+paths:
+  real: "data/processed/mimic3/{SPLIT}DiscDataset.pkl"
+  ts: "data/processed/mimic3/{SPLIT}TS.csv"
+  meta: "data/processed/mimic3/metadata2.pkl"
+  syn: "data/synthetic/{RUN_NAME}Dataset.pkl"
+  ts_cache: "data/SynTS"
+
+# Continuous variables (36 total)
+continuous_vars:
+  - 'Alanine aminotransferase'
+  - 'Albumin'
+  - 'Alkaline phosphate'
+  - 'Anion gap'
+  - 'Asparate aminotransferase'
+  - 'Basophils'
+  - 'Bicarbonate'
+  - 'Bilirubin'
+  - 'Blood urea nitrogen'
+  - 'Calcium'
+  - 'Chloride'
+  - 'Creatinine'
+  - 'Diastolic blood pressure'
+  - 'Fraction inspired oxygen'
+  - 'Glucose'
+  - 'Heart Rate'
+  - 'Hematocrit'
+  - 'Hemoglobin'
+  - 'Lactate'
+  - 'Lymphocytes'
+  - 'Mean blood pressure'
+  - 'Mean corpuscular volume'
+  - 'Monocytes'
+  - 'Neutrophils'
+  - 'Oxygen saturation'
+  - 'Partial pressure of carbon dioxide'
+  - 'Phosphate'
+  - 'Platelets'
+  - 'Potassium'
+  - 'Prothrombin time'
+  - 'Red blood cell count'
+  - 'Respiratory rate'
+  - 'Systolic blood pressure'
+  - 'Temperature'
+  - 'White blood cell count'
+  - 'pH'
+
+# Label configurations
+n_phe_labels: 25
+# label_cols: ["label_phe_{i}" for i in range(25)] + ["label_ihm"]
+
+# Analysis parameters
+n_top_ngrams: 1000000
+n_samples_privacy: 5000
+n_samples_utility: 5000
+time_window_hours: 48
+
+# Random seeds for reproducibility
+random_seeds: [42, 43, 44]
+
+# Utility evaluation - train/synthetic mixing ratios
+train_fake_ratios:
+  - [0, 1]      # 0% real, 100% synthetic (TSTR)
+  - [0.1, 1]
+  - [0.1, 0]    # 10% real with/without synthetic
+  - [0.2, 1]
+  - [0.2, 0]    # 20% real with/without synthetic
+  - [0.5, 1]
+  - [0.5, 0]    # 50% real with/without synthetic
+  - [1, 1]
+  - [1, 0]      # 100% real with/without synthetic (TRTR)
+
+# Correlation analysis
+correlation:
+  label_map:
+    0: '0'    # high-neg
+    1: '1'    # medium-neg
+    2: '2'    # low
+    3: '3'    # medium-pos
+    4: '4'    # high-pos
+    100: 'nan'
+  selected_labels: [0, 1, 2, 3, 4]
+  mode: 'default'  # 'normalized' or 'default'
+
+# t-SNE visualization
+tsne:
+  n_samples: 3000
+  n_components: 2
+  perplexity: 30
+  learning_rate: 10
+  n_jobs: 4
