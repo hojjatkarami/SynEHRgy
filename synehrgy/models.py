@@ -4,6 +4,7 @@
 """
 
 
+
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -28,9 +29,11 @@ import wandb
 from omegaconf import DictConfig, OmegaConf
 
 
-from synehrgy.config import HydraConfig
+from synehrgy.tokenizer import EHRTokenizer
 
 logger = logging.get_logger(__name__)
+
+
 
 
 
@@ -367,84 +370,156 @@ class GPT2ModelCustom(GPT2Model):
 
 
 class SynEHRgy(Trainer):
-    def __init__(self, config_main, config, train_dataset=None, eval_dataset=None, run_name=None, model=None):
-        self.config = config
+    def __init__(self,
+                  config_main,
+                    train_dataset=None,
+                      eval_dataset=None,
+                      token_list=None,
+                      tokenizer=None,
+                        run_name=None,
+                          model=None):
+        # self.config = config
+        self.config_main = config_main
+        self.context_length = config_main.n_ctx
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.run_name = run_name
 
+
+        import pickle
+        metadata = pickle.load(open(f"{config_main.data.path}/metadata_{config_main.disc_name}.pkl", "rb"))
+        idToLabel = metadata['idToLabel']
+
+        
+
+        # self.token2id = token2id
+
+        if tokenizer is None:
+            self.processing_class = EHRTokenizer(vocab_list=token_list)
+        else:
+            self.processing_class = tokenizer
+
+        # tokenizer configs
+        tokenizer_config = {
+            "vocab_size": len(self.processing_class),
+            "eos_token_id": self.processing_class.get_vocab()['</s>'],
+            "pad_token_id": self.processing_class.get_vocab()['<pad>'],
+            "bos_token_id": self.processing_class.get_vocab()['<s>'],
+        }
+
+
+        
+
+
         if model is None:
-            if config_main.model_config.config_class == "GPT2Config":
+            model_class = config_main.model_config.config_class
+            model_kwargs = {
+                **config_main.model_config.config,
+                **tokenizer_config,
+            }
 
-
-                cfg = GPT2Config(
-                    n_positions=config_main.model_config.config.n_positions,
-                    n_ctx=config_main.model_config.config.n_ctx,
-                    n_embd=config_main.model_config.config.n_embd,
-                    n_layer=config_main.model_config.config.n_layer,
-                    n_head=config_main.model_config.config.n_head,
-                    
-                    vocab_size=config.total_vocab_size,
-                    eos_token_id=config.end_record_token_id,
-                    pad_token_id=config.pad_token_id,
-                    start_token_id=config.start_token_id,
-                    # end_label_token_id=config.end_label_token_id,
-                    # end_visit_token_id=config.end_visit_token_id,
-                    # anc_vocab_size=config.anc_vocab_size,
-                    # code_vocab_size=config.code_vocab_size,
-                    # n_next=config.n_next,
-                    # strategy=config.strategy,
-                    # w_class=config.w_class,
-                    # emb_method=config.emb_method,
-                )
+            if model_class == "GPT2Config":
+                # Initialize GPT-2 model
+                model_kwargs['n_positions'] = config_main.n_ctx
+                cfg = GPT2Config(**model_kwargs)
                 model = GPT2LMHeadModel(cfg).to(self.device)
-            elif config_main.model_config.config_class == "Qwen2Config":
 
-                cfg = Qwen2Config(
-                    **config_main.model_config.config,
-                    vocab_size=config.total_vocab_size,
-                    eos_token_id=config.end_record_token_id,
-                    pad_token_id=config.pad_token_id,
-                    start_token_id=config.start_token_id,
-                    
-                )
+            elif model_class == "Qwen2Config":
+                # Initialize Qwen2 model
+                cfg = Qwen2Config(**model_kwargs)
                 model = Qwen2ForCausalLM(cfg).to(self.device)
+
+
         
-        
+        model.resize_token_embeddings(len(self.processing_class))
+
+        # log model size in millions of parameters
+        print(f"Model size: {sum(p.numel() for p in model.parameters()) / 1_000_000:.2f}M")
+
         if train_dataset is None:
             self.model = model
             return
 
         PATH_SAVE_MODEL = f"saved_models/{run_name}"
         
-        # assert train_dataset.is_tokenized == True, "train_dataset must be tokenized"
-        # assert eval_dataset.is_tokenized == True, "eval_dataset must be tokenized"
-
         
 
         os.makedirs(PATH_SAVE_MODEL, exist_ok=True)
         # save to wandb
         if wandb.run is not None:
-            # save the config in pkl file
-            import pickle
-            with open(f"{PATH_SAVE_MODEL}/config.pkl", "wb") as f:
-                pickle.dump(config, f)
-        
-        
-            # save config_main
-            OmegaConf.save(config=config_main, resolve=True, f=f"{PATH_SAVE_MODEL}/config_main.yaml")
+            # if the project_name is eval
+            if wandb.run.project == "SynEHRgy":
+            
+                wandb.log({"model_size": sum(p.numel() for p in model.parameters()) / 1_000_000})
+                # save the config in pkl file
+                import pickle
+                # with open(f"{PATH_SAVE_MODEL}/config.pkl", "wb") as f:
+                #     pickle.dump(config, f)
+            
+            
+                # save config_main
+                OmegaConf.save(config=config_main, resolve=True, f=f"{PATH_SAVE_MODEL}/config_main.yaml")
 
-            wandb.run.save(f"{PATH_SAVE_MODEL}/config.yaml")
-            wandb.run.save(f"{PATH_SAVE_MODEL}/config_main.yaml")
+                # wandb.run.save(f"{PATH_SAVE_MODEL}/config.yaml")
+                wandb.run.save(f"{PATH_SAVE_MODEL}/config_main.yaml")
+
+                # log len(tokenizer)
+                wandb.log({"tokenizer_length": len(self.processing_class.get_vocab())})
         
         
+
+
+        
+        if config_main.get("budget", None) is not None:
+            # Compute number of training steps from budget (number of tokens)
+            logger.info(f"Computing training steps from budget {config_main.budget:,} TFLOPs")
+
+            def compute_training_flops(model_config, L: int) -> float:
+                if model_config.config_class == "GPT2Config":
+                    n_layer = model_config.config.n_layer
+                    d = model_config.config.n_embd
+                    n_head = model_config.config.n_head
+                    forward_flops = n_layer * (12 * L * d**2 + 2 * L**2 * d)
+
+
+
+                return forward_flops * 3 / 1e12
+
+            tflop_per_example = compute_training_flops(
+                config_main.model_config, L=self.context_length
+            )
+            logger.info(
+                f"\tEstimated Training FLOPs per example: {tflop_per_example * 1e12:,.0f}"
+            )
+
+            tflop_per_step = (
+                tflop_per_example
+                * config_main.model_config.training.per_device_train_batch_size
+                * config_main.model_config.training.gradient_accumulation_steps
+            )
+            self.tflop_per_step = tflop_per_step
+            logger.info(f"\tEstimated Training TFLOPs per step: {tflop_per_step:.2f}")
+
+            required_steps = int(config_main.budget / tflop_per_step)
+
+            # update cfg.training.max_steps
+            max_steps = required_steps
+            logger.info(f"\tUpdated training.max_steps to {max_steps}")
+        else:
+            max_steps = -1
+
+
+        bf16_supported = torch.cuda.is_available() and torch.cuda.get_device_properties(0).major >= 8  # Ampere = 8+
+
+        if not bf16_supported:
+            config_main.model_config.training.bf16 = False
+            config_main.model_config.training.fp16 = True
+            print("BF16 not supported, using FP16 instead.")
+
+
+
         training_args = TrainingArguments(
             output_dir=f'{PATH_SAVE_MODEL}',
             overwrite_output_dir=True,
-            num_train_epochs=config_main.train.epochs,
-            per_device_train_batch_size=config_main.hparams.mini_batch,
-            per_device_eval_batch_size=config_main.hparams.mini_batch,
-            learning_rate=3e-4,
-            gradient_accumulation_steps = int(config_main.hparams.batch_size / config_main.hparams.mini_batch),
             eval_strategy="epoch",
             save_strategy="epoch",
             save_steps=100,
@@ -453,32 +528,31 @@ class SynEHRgy(Trainer):
             greater_is_better=False,                     # lower eval loss is better
             load_best_model_at_end=True,                 # load the best model at the end of training
 
-            # bf16=True,
-            dataloader_num_workers  = 4,
-            report_to="wandb",
-            
-            run_name="m3-",
+            num_train_epochs=config_main.train.num_train_epochs,
+            max_steps=max_steps,
 
+
+            
+            **config_main.model_config.training,
+
+            **config_main.training,
+            # bf16=True,
+            report_to="wandb",            
+            # run_name="m3-",
             logging_dir="./logs",
             logging_steps=10,
             logging_first_step=False,
             
             # eval_steps=100,
-
-            
-            
-
         )
-        # trainer = Trainer(
-        #     model=self,
-        #     args=training_args,
-        #     train_dataset=train_dataset,
-        #     eval_dataset=eval_dataset,
-        #     callbacks=[
-        #         PerplexityLoggingCallback(),
-        #         EarlyStoppingCallback(early_stopping_patience=cfg.train.patience),  # early stopping callback
-        #         ],
-        # )
+
+        if self.config_main.collate_fn == 'truncate':
+            data_collator = self.collate_fn_truncate
+        elif self.config_main.collate_fn == 'dense_packed':
+            data_collator = self.collate_fn_dense_packed
+        else:
+            raise ValueError(f"Unknown collate_fn: {self.config_main.collate_fn}")
+        print(f"Using data collator: {data_collator}")
 
         super().__init__(
             model=model,
@@ -491,22 +565,130 @@ class SynEHRgy(Trainer):
                 EarlyStoppingCallback(early_stopping_patience=config_main.train.patience),  # early stopping callback
                 ],
 
-            # data_collator=self.collate_fn_name,
+            data_collator=self.collate_fn_truncate,
             # compute_metrics=self._compute_metrics,
-            # callbacks=callbacks,
-            # processing_class=self.processing_class,
+
+            processing_class=self.processing_class,
             # compute_loss_func=self.compute_loss_func,
         )
 
+    def compute_embeddings(self, dataset, layer='last_hidden_state', batch_size=None):
+        """
+        Compute embeddings from the model's last hidden layer for all elements in the dataset.
+        Returns a torch.Tensor (num_examples, hidden_dim).
+        """
+        self.model.eval()
+        device = self.device
+
+        # Reuse eval dataloader to ensure same collate/tokenization logic
+        dataloader = self.get_eval_dataloader(dataset)
+
+        all_embeddings = []
+
+        for batch in tqdm(dataloader, desc="Computing embeddings"):
+            # move to device
+            batch = {k: v.to(device) for k, v in batch.items() if isinstance(v, torch.Tensor)}
+
+            # forward pass
+            with torch.no_grad():
+                outputs = self.model(**batch, output_hidden_states=True)
+
+            # typically outputs.hidden_states is a tuple of [layer_0, layer_1, ..., layer_n]
+            hidden = outputs.hidden_states[-1]  # last hidden layer
+
+            # If using a language model: get embedding of last token, mean, or CLS token
+            if "attention_mask" in batch:
+                mask = batch["attention_mask"].unsqueeze(-1)
+                emb = (hidden * mask).sum(1) / mask.sum(1)  # mean pooling over valid tokens
+            else:
+                emb = hidden.mean(1)
+
+            all_embeddings.append(emb.cpu())
+
+        all_embeddings = torch.cat(all_embeddings, dim=0)
+        return all_embeddings
+
+    def collate_fn_truncate(self, batch):
+        # print(batch[0])
+        tokenized = self.processing_class(
+            batch,
+            padding=True,
+            is_split_into_words=True,
+            truncation=True,
+            return_tensors="pt",
+            max_length=self.context_length,
+        )
+
+        # Create labels and mask out padding
+        labels = tokenized["input_ids"].clone()
+        labels[labels == self.processing_class.pad_token_id] = -100
+        tokenized["labels"] = labels
+
+        # print(tokenized["input_ids"][0])
+
+        # log percentage that contains </s>
+        # Compute fraction of eos tokens
+        end_of_sequence = (tokenized["input_ids"] == self.processing_class.eos_token_id).sum(dim=1)
         
+        end_of_sequence = end_of_sequence.sum().float() / end_of_sequence.numel()
+        # print({"train/eos_ratio": end_of_sequence})
+
+        assert tokenized["input_ids"].max() < len(self.processing_class), "Token id exceeds vocabulary size"
+        return {
+            "input_ids": tokenized["input_ids"],
+            "attention_mask": tokenized["attention_mask"],
+            "labels": tokenized["labels"],
+            # "types_disc": tokenized["types_disc"],
+        }
+
+    def collate_fn_dense_packed(self, batch):
+        # Flatten all patient sequences into one long sequence
+        packed_tokens = []
+        for item in batch:
+            packed_tokens.extend(
+                item
+            )  # already includes <BOS> and <EOS>
+
+        # Optionally split into chunks of context_length
+        chunks = [
+            packed_tokens[i : i + self.context_length]
+            for i in range(0, len(packed_tokens), self.context_length)
+        ]
+
+        tokenized = self.processing_class(
+            chunks,
+            padding=True,
+            is_split_into_words=True,
+            truncation=False,
+            return_tensors="pt",
+        )
+
+         # Create labels and mask out padding
+        labels = tokenized["input_ids"].clone()
+        labels[labels == self.processing_class.pad_token_id] = -100
+        tokenized["labels"] = labels
+
+        # print(tokenized["input_ids"][0])
+
+        # log percentage that contains </s>
+        # Compute fraction of eos tokens
+        end_of_sequence = (tokenized["input_ids"] == self.processing_class.eos_token_id).sum(dim=1)
         
+        end_of_sequence = end_of_sequence.sum().float() / end_of_sequence.numel()
+        # print({"train/eos_ratio": end_of_sequence})
 
-
-
+        assert tokenized["input_ids"].max() < len(self.processing_class), "Token id exceeds vocabulary size"
+        return {
+            "input_ids": tokenized["input_ids"],
+            "attention_mask": tokenized["attention_mask"],
+            "labels": tokenized["labels"],
+            # "types_disc": tokenized["types_disc"],
+        }
+    
     def generate_synthetic_dataset(self,cfg):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.eval()
-
+        # token2id = self.token2id
         synthetic_ehr_dataset = []
         selected_ids=[]
 
@@ -558,7 +740,7 @@ class SynEHRgy(Trainer):
 
 
             else: # unconditional generation
-                stoken =  [self.config.start_token_id]
+                stoken =  [self.processing_class._convert_token_to_id('<s>')]  # start token
                 context = (
                     torch.tensor(stoken, device=self.device, dtype=torch.long)
                     .unsqueeze(0)
@@ -579,8 +761,11 @@ class SynEHRgy(Trainer):
                 # pad_token_id=token2id['<pad>'],                
             ) # (batch_size, n_ctx)
 
-
-
+            # id2token =  {v:k for k,v in token2id.items()}
+            # seq_tokens = [id2token[x] for x in batch_synthetic_ehrs[0]]
+            # print(seq_tokens)
+            # print('context', context[0], [id2token[x.item()] for x in context[0]])
+            # term
             # batch_synthetic_ehrs = detokenize(batch_synthetic_ehrs, config,id2token)
             
 
@@ -610,29 +795,33 @@ class SynEHRgy(Trainer):
         # pad_token_id=5127,
     ):
 
+        assert self.model.config.eos_token_id == self.processing_class.eos_token_id
         
         with torch.no_grad():
 
-            print('lets generate',context.shape, self.config.n_ctx, self.model.device)
-            ehr = self.model.generate(
+            print('lets generate',context.shape, self.context_length, self.model.device)
+            output = self.model.generate(
                 input_ids = context,
                 attention_mask=attention_mask,
-                max_length=self.config.n_ctx,
+                max_length=self.context_length,
                 num_return_sequences=1,
                 **generation_config,
                 # pad_token_id=pad_token_id,
                 use_cache=True,
+                return_dict_in_generate=True
             )
+            # last_hidden_state = output.last_hidden_state
+            ehr = output.sequences
             print('done generate')
 
         return ehr.cpu().detach().numpy()
 
     @staticmethod
-    def from_pretrained(model_path):
+    def from_pretrained(model_path, train_dataset=None, eval_dataset=None, token_list=None):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
         import pickle
-        config = pickle.load(open(f"{model_path}/config.pkl", "rb"))
+        # config = pickle.load(open(f"{model_path}/config.pkl", "rb"))
         
         
         config_main = OmegaConf.load(f"{model_path}/config_main.yaml")
@@ -651,56 +840,16 @@ class SynEHRgy(Trainer):
 
         print(f"Loading from: {last_checkpoint}")
         model = AutoModelForCausalLM.from_pretrained(last_checkpoint).to(device)
+
+        # load tokenizer
+        tokenizer = EHRTokenizer.from_pretrained(last_checkpoint)
         
         return SynEHRgy(config_main,
-                        config,
-                        train_dataset=None,
-                        eval_dataset=None,
+                        train_dataset=train_dataset,
+                        eval_dataset=eval_dataset,
+                        token_list=token_list,
+                        tokenizer=tokenizer,
                         run_name="IGNORE",
                         model=model
                         )
         
-
-        # instance = SynEHRgy(config_main,
-        #                config,
-        #              train_dataset=None,
-        #              eval_dataset=None,
-        #              run_name="IGNORE",
-        #              model=model
-        #              )
-
-
-        # # loading the model
-        # if os.path.exists(f"{model_path}"):
-        #     print("[info] Loading model from ", model_path)
-        #     # find all checkpointns
-        #     checkpoints = [
-        #         f
-        #         for f in os.listdir(f"{model_path}")
-            
-        #     ]
-
-        #     print("[info] Checkpoints found: ", checkpoints[0])
-
-        #     # model = Bart9Model(config).to(device)
-
-        #     try:
-        #         # Load the weights from the safetensors file
-        #         from safetensors import safe_open
-        #         checkpoint_path = f"{model_path}/{checkpoints[0]}/model.safetensors"
-        #         with safe_open(checkpoint_path, framework="pt", device='cuda') as f:
-        #             state_dict = {k: f.get_tensor(k) for k in f.keys()}
-
-        #         instance.load_state_dict(state_dict)
-        #     except:
-        #         print("use bin file for loading model")
-        #         checkpoint_path = f"{model_path}/{checkpoints[0]}/pytorch_model.bin"
-        #         state_dict = torch.load(checkpoint_path)
-        #         instance.load_state_dict(state_dict)
-
-        # return instance
-
-        # pass
-
-
-

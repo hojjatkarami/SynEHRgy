@@ -1,6 +1,6 @@
 defaults:
   - data: mimic3
-  - model_config:
+  - model_config: gpt2
 
   - _self_
 
@@ -24,21 +24,28 @@ preprocess:
   split: false
   bin_type: uniform # uniform or quantile or raw
 
+disc_name: uniform_v1 # relevant if bin_type is uniform or quantile
+tok_strategy: var_quant # var_quant or var+quant
+
+collate_fn: truncate # truncate or dense_packed
+
 use_pretrained: False
 ignore_ts: False
 model: gpt # bart or gpt
 
 train:
-  epochs: 20
+  num_train_epochs: 20
   patience: 5
   gclip: 1
   ratio: 1 # low ratio can be used for debug mode
 
+budget: 1e4 # Tera FLOPs
+
+n_ctx: 1024
 hparams:
   lr: 3e-4
-  batch_size: 128
-  mini_batch: 64
-  n_ctx: 1024
+  # batch_size: 128
+  # mini_batch: 64
   n_embd: 384
   n_layer: 4
   n_head: 4
@@ -50,19 +57,19 @@ loss:
 
 # ==== Training ====
 training:
-  # we also have training configs in model_config.training
+  # # we also have training configs in model_config.training
 
-  # generic
-  per_device_eval_batch_size: 64
-  eval_accumulation_steps: 1
-  prediction_loss_only: true
+  # # generic
+  # per_device_eval_batch_size: 64
+  # eval_accumulation_steps: 1
+  # prediction_loss_only: true
 
-  logging_steps: 25
-  save_total_limit: 20
-  eval_strategy: "steps"
-  eval_steps: 250
+  # logging_steps: 25
+  # save_total_limit: 20
+  # eval_strategy: "steps"
+  # eval_steps: 250
 
-  max_steps: -1 # will be computed if budget is set
-  num_train_epochs: 2 # will be ignored if max_steps > 0
+  # max_steps: -1 # will be computed if budget is set
+  # num_train_epochs: 2 # will be ignored if max_steps > 0
 
   dataloader_num_workers: 8

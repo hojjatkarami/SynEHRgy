@@ -152,8 +152,14 @@ def load_train_timeseries(cfg: DictConfig):
     temp = pd.concat([ts for patient in data for ts in patient['ts']])
     
     # Convert categorical variables to string
-    for var in cfg.ts_cat:
-        temp[var] = temp[var].astype(str)
+    if cfg.ts_cat is not None:
+        for var in cfg.ts_cat:
+            if var in temp.columns:
+                temp[var] = temp[var].astype(str)
+            else:
+                print(f"Warning: Categorical variable {var} not found in data columns.")
+    else:
+        cfg.ts_cat = []
     
     # Replace 'nan' with np.nan
     temp[temp == 'nan'] = np.nan
@@ -246,8 +252,45 @@ def tokenize_timeseries(cfg: DictConfig, temp: pd.DataFrame, token2id: dict):
             if bin_type == 'uniform':
                 binned_data, bin_edges = pd.cut(all_values2, bins=n_bins, retbins=True, duplicates='drop')
             elif bin_type == 'quantile':
-                binned_data, bin_edges = pd.qcut(all_values2, n_bins, retbins=True, duplicates='drop')
-            
+
+                try:
+                    assert n_bins == cfg.n_bins_default, "quantile_ueq only supported for default n_bins"
+                    binned_data, bin_edges = pd.qcut(all_values2, n_bins, retbins=True, duplicates='drop')
+                    assert len(bin_edges) - 1 == n_bins, f"Expected {n_bins} bins, got {len(bin_edges)-1}"
+                    
+                    # make sure bin edges are monotically increasing
+                    
+                    assert np.all(np.diff(bin_edges) > 0), f"Bin edges are not monotically increasing for variable {var}, {bin_edges}"
+                except Exception as e:
+                    print(f"Error in quantile_ueq binning for variable {var}: {e}\nFalling back to uniform binning.")
+                    binned_data, bin_edges = pd.cut(all_values2, bins=n_bins, retbins=True, duplicates='drop')
+            elif bin_type == 'quantile_ueq':
+                try:
+                    assert n_bins == cfg.n_bins_default, "quantile_ueq only supported for default n_bins"
+                    # bin edges [min,p02, p05, p10, p25, p50, p75, p90, p95, p98, max]
+                    print(var, "using quantile_ueq binning", n_bins)
+                    bin_edges = np.array([
+                        all_values2.min(),
+                        all_values2.quantile(0.02),
+                        all_values2.quantile(0.05),
+                        all_values2.quantile(0.1),
+                        all_values2.quantile(0.25),
+                        all_values2.quantile(0.5),
+                        all_values2.quantile(0.75),
+                        all_values2.quantile(0.9),
+                        all_values2.quantile(0.95),
+                        all_values2.quantile(0.98),
+                        all_values2.max()
+                    ])
+                    assert len(bin_edges) - 1 == n_bins, f"Expected {n_bins} bins, got {len(bin_edges)-1}"
+                    
+                    # make sure bin edges are monotically increasing
+                    
+                    assert np.all(np.diff(bin_edges) > 0), f"Bin edges are not monotically increasing for variable {var}, {bin_edges}"
+                except Exception as e:
+                    print(f"Error in quantile_ueq binning for variable {var}: {e}\nFalling back to uniform binning.")
+                    binned_data, bin_edges = pd.cut(all_values2, bins=n_bins, retbins=True, duplicates='drop')
+
             beginPos.append(beginPos[-1] + n_bins)
             discretization[var] = bin_edges.tolist()
             possibleValues[var] = {f"{var}_{i}": i for i in range(n_bins)}
@@ -377,9 +420,14 @@ def main(cfg: DictConfig):
     print(OmegaConf.to_yaml(cfg))
     
     # Load ICD codes and create code tokens
-    df_icd, df_proc = load_icd_codes(cfg)
-    token2id, codeToId, idToCode = create_code_tokens(df_icd, df_proc)
-    
+    if "mimic" in cfg.data_version:
+        df_icd, df_proc = load_icd_codes(cfg)
+        token2id, codeToId, idToCode = create_code_tokens(df_icd, df_proc)
+    else:
+        # For eICU, no ICD codes
+        token2id = {}
+        codeToId = {}
+        idToCode = {}
     # Load training time series data
     temp = load_train_timeseries(cfg)
     
@@ -396,7 +444,10 @@ def main(cfg: DictConfig):
     M_soft_labels = create_soft_label_matrix(token2id, soft_labels)
     
     # Extract phenotype names
-    idToLabel = extract_phenotype_names(cfg)
+    if cfg.path_phe is not None:
+        idToLabel = extract_phenotype_names(cfg)
+    else:
+        idToLabel = {}
     
     # Calculate vocabulary size
     vocab_size = calculate_vocab_size(codeToId, ts_info, discretization, cfg)
@@ -422,7 +473,7 @@ def main(cfg: DictConfig):
     }
     
     path_data = cfg.path_data
-    metadata_file = f"{path_data}/metadata2.pkl" if cfg.bin_type == 'uniform' else f"{path_data}/metadata.pkl"
+    metadata_file = f"{path_data}/metadata_{cfg.bin_type}_{cfg.disc_version}.pkl"
     
     with open(metadata_file, "wb") as f:
         pickle.dump(metadata, f)

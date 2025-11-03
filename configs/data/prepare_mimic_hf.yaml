@@ -1,0 +1,28 @@
+# Configuration for MIMIC-III to HuggingFace dataset conversion
+
+# Paths
+data_path: "/home/hokarami/data/homes/hokarami/data"
+mimic_path: "${data_path}/mimic3/mimic-iii-clinical-database-1.4/"
+project_path: "/home/hokarami/code/SynEHRgy"
+output_path: "${project_path}/data/processed/mimic3_hf"
+
+# Output configuration
+output_name: "mimic3_dataset"
+
+# Processing options
+max_patients: null  # Set to a number to limit patients for testing (e.g., 100)
+inpatient_only: true  # Only include in-hospital lab events (with HADM_ID)
+chunksize: 1000000  # Chunk size for reading large LABEVENTS table
+
+# Chunking configuration
+n_chunks: 100  # Number of chunks to split the dataset into for parallel processing
+n_workers: 16  # Number of parallel workers (1 for sequential, -1 for all CPUs, or specific number)
+limit: 10 
+# ICD code filtering (optional - not implemented yet)
+min_icd_count: null  # Minimum occurrences for an ICD code to be included
+
+# Lab event filtering (optional - not implemented yet)
+min_lab_count: null  # Minimum occurrences for a lab ITEMID to be included
+
+# Vocabulary creation
+n_bins_vocab: 10  # Number of bins for quantile calculation in vocabulary

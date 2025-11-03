@@ -7,14 +7,42 @@ import pickle
 
 
 class HydraConfig(object):
-    def __init__(self, cfg):
+    def __init__(self, cfg, tok_strategy):
 
         self.dataset_folder = cfg.data.path
         self.data_type = cfg.data.type
 
-        metadata = pickle.load(open(f"{cfg.data.path}/metadata2.pkl", "rb"))
-        token2id = metadata['token2id']
+        metadata = pickle.load(open(f"{cfg.data.path}/metadata_{cfg.disc_name}.pkl", "rb"))
         idToLabel = metadata['idToLabel']
+
+        token2id = metadata['token2id']
+        
+            
+        if tok_strategy == "var+quant":
+            token2id = metadata['token2id']
+
+            # Separate tokens by type
+            temp_non_ts = [k for k in token2id.keys() if k[0] != 'ts']
+            temp_ts = [k for k in token2id.keys() if k[0] == 'ts']
+
+            # Extract time-series variable and quantile tokens
+            temp_var = sorted({('ts', k[1]) for k in temp_ts if len(k) > 1})
+            temp_quant = sorted({('quant', k[2]) for k in temp_ts if len(k) > 2})
+
+            # Combine in deterministic order
+            token2id_new = {}
+            for k in temp_non_ts:
+                token2id_new[k] = len(token2id_new)
+            for k in temp_var:
+                token2id_new[k] = len(token2id_new)
+            for k in temp_quant:
+                token2id_new[k] = len(token2id_new)
+
+            token2id = token2id_new
+            metadata['token2id'] = token2id
+
+            assert len(token2id) == max(token2id.values()) + 1, "Error in token2id construction"
+
 
         self.code_vocab_size = metadata['vocab_size']['codes']
         self.label_vocab_size = len(idToLabel)
@@ -47,14 +75,15 @@ class HydraConfig(object):
 
 
         self.total_vocab_size = len(token2id)
+        print(f"Total vocab size: {self.total_vocab_size}")
         # hparams
-        self.lr = cfg.hparams.lr
-        self.batch_size = cfg.hparams.batch_size
-        self.n_ctx = cfg.hparams.n_ctx
-        self.n_positions = cfg.hparams.n_ctx*0+1024 #1024
-        self.n_embd = cfg.hparams.n_embd
-        self.n_layer = cfg.hparams.n_layer
-        self.n_head = cfg.hparams.n_head
+        # self.lr = cfg.hparams.lr
+        # self.batch_size = cfg.hparams.batch_size
+        # self.n_ctx = cfg.hparams.n_ctx
+        # self.n_positions = cfg.hparams.n_ctx*0+1024 #1024
+        # self.n_embd = cfg.hparams.n_embd
+        # self.n_layer = cfg.hparams.n_layer
+        # self.n_head = cfg.hparams.n_head
 
         # loss params
         self.n_next = cfg.loss.n_next

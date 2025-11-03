@@ -6,10 +6,10 @@ model_class: GPT2LMHeadModel
 context_length: 2048
 
 config:
-  n_embd: 384                     # hidden size
+  n_embd: 768                     # hidden size
   # n_inner: 1024                   # intermediate size
-  n_layer: 4                      # number of transformer layers
-  n_head: 4                       # number of attention heads
+  n_layer: 8                      # number of transformer layers
+  n_head: 8                       # number of attention heads
   n_positions: 1024               # maximum sequence length
   # n_ctx: 1024                     # same as n_positions (for backward compatibility)
   
@@ -27,8 +27,20 @@ config:
 
 
 training:
-  learning_rate: 3e-4
+  learning_rate: 0.002
   per_device_train_batch_size: 64
   per_device_eval_batch_size: 64
   gradient_accumulation_steps: 2
 
+  warmup_ratio: 0.015
+  lr_scheduler_type: "cosine"
+  weight_decay: 0.1
+  max_grad_norm: 1.0
+
+  bf16: true
+  fp16: false
+  gradient_checkpointing: true
+
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_epsilon: 1e-8

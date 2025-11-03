@@ -9,7 +9,7 @@ defaults:
 #   - halo-icd-big (HALO - ICD codes)
 #   - timehr (TimeHR - time series)
 #   - rtsgan-phe (RTSGAN - time series, requires pre-processed files)
-data_name: synehrgy-mimic-v2
+data_name: v8-gpt3-var+quant
 
 
 wandb:
@@ -62,6 +62,8 @@ continuous_vars:
   - 'White blood cell count'
   - 'pH'
 
+
+val_only: false
 # Label configurations
 n_phe_labels: 25
 # label_cols: ["label_phe_{i}" for i in range(25)] + ["label_ihm"]
@@ -69,7 +71,7 @@ n_phe_labels: 25
 # Analysis parameters
 n_top_ngrams: 1000000
 n_samples_privacy: 5000
-n_samples_utility: 5000
+n_samples_utility: 1000
 time_window_hours: 48
 
 # Random seeds for reproducibility

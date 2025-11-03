@@ -115,6 +115,14 @@ def process_benchmarks_data(cfg: DictConfig, df_icd: pd.DataFrame, df_proc: pd.D
             # Time series data
             df_ts = pd.read_csv(f"{path_phe}/{ff}/{stay}")[ts_vars + ts_hours]
             
+            # Limit precision: hours to integer, other variables to 2 decimal places
+            for col in ts_hours:
+                if col in df_ts.columns:
+                    df_ts[col] = df_ts[col].round(0).astype('Int64')  # Use Int64 to handle NaN
+            for col in ts_vars:
+                if col in df_ts.columns and pd.api.types.is_numeric_dtype(df_ts[col]):
+                    df_ts[col] = df_ts[col].round(2)
+            
             if sid in list_sids:  # If the subject is already in the list
                 subject_data = data[list_sids.index(sid)]
                 subject_data['hadm_id'].append(hadm_id)

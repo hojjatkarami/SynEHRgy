@@ -72,6 +72,13 @@ covars_cont:
 # Discretization parameters
 bin_type: "uniform"  # 'uniform' or 'quantile'
 n_bins_default: 10
+disc_version: v1
+
+
+disc_name:
+
+n_workers: 8
+
 
 # Horizons (experimental)
 horizons:

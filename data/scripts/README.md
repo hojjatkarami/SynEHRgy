@@ -244,13 +244,26 @@ This runs all three steps sequentially with consistent configuration.
 
 ```bash
 # Step 1: Read and filter raw data
-python step1_read_data.py
+python step1_read_data.py n_workers=8
 
 # Step 2: Create token dictionary
-python step2_create_tokens.py
+python step2_create_tokens.py bin_type=uniform
+# or
+python step2_create_tokens.py bin_type=quantile
+# or 
+python step2_create_tokens.py bin_type=quantile_ueq
 
 # Step 3: Convert to token IDs
-python step3_discretize.py
+python step3_discretize.py disc_name=uniform_v1 n_workers=8
+
+
+
+# for eicu data
+python step2_create_tokens.py bin_type=uniform --config-name=prepare_eicu
+
+python step3_discretize.py disc_name=uniform_v1 n_workers=8 --config-name=prepare_eicu
+
+
 ```
 
 ### Configuration Overrides

@@ -474,6 +474,7 @@ def analyze_fidelity_ts(datasets_df_ts, datasets_df_static, X, y, cfg, output_di
     fig_occ.write_html(occ_plot_path)
     print(f"  ✓ Saved co-occurrence plot to {occ_plot_path}")
     
+ 
     # Log to wandb
     if wandb.run is not None:
         wandb.log({'fidelity-ts/co-occurrence-matrix': wandb.Html(fig_occ.to_html())})
@@ -488,6 +489,7 @@ def analyze_fidelity_ts(datasets_df_ts, datasets_df_static, X, y, cfg, output_di
         Xy = {}
         
         for k in ['train', 'target']:
+            print(f"    Processing {k} dataset...",len(X[k]))
             Xy[k] = X[k].fillna(0).iloc[:, :LL]
             Xy[k] = Xy[k].sample(cfg.n_samples_utility, random_state=random_state, replace=False)
             Xy[k] = Xy[k] + np.random.normal(0, 0.00001, Xy[k].shape)
@@ -1104,7 +1106,6 @@ def main(cfg: DictConfig):
             print(f"  Processing {k}...")
             df_static = datasets_df_static[k]
             X[k], y[k] = genTSembeddings(df_ts, df_static, CONT_VARS, COL_LABELS)
-        
         print("✓ Time series embeddings created\n")
     else:
         X, y = None, None

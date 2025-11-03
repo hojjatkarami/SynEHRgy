@@ -1,0 +1,196 @@
+# Configuration for MIMIC-III data preparation
+
+# Paths
+data_version: "eicu"
+project_path: "/home/hokarami/code/SynEHRgy"
+data_path: "/home/hokarami/data/homes/hokarami/data"
+# mimic_path: "${data_path}/mimic3/mimic-iii-clinical-database-1.4/"
+# path_root: "${data_path}/mimic3-benchmarks/data/root4"
+# path_ihm: "${data_path}/mimic3-benchmarks/data/in-hospital-mortality2"
+path_phe: #"${data_path}/mimic3-benchmarks/data/phenotyping2"
+path_data: "${project_path}/data/processed/${data_version}"
+
+# ICD code filtering
+min_th_icd: 5  # minimum threshold for an ICD code to be considered
+
+# Time series variables
+ts_cat:
+  # - "Capillary refill rate"
+  # - "Glascow coma scale eye opening"
+  # - "Glascow coma scale motor response"
+  # - "Glascow coma scale total"
+  # - "Glascow coma scale verbal response"
+
+ts_cont:
+  - "Glucose_Bedside"
+  - "Potassium"
+  - "Sodium"
+  - "Glucose_Serum"
+  - "Hemoglobin"
+  - "Chloride"
+  - "Hematocrit"
+  - "Creatinine"
+  - "Blood_Urea_Nitrogen"
+  - "Calcium_Total"
+  - "Bicarbonate"
+  - "Platelets"
+  - "White_Blood_Cells"
+  - "Red_Blood_Cells"
+  - "Mean_Corpuscular_Volume"
+  - "Mean_Corpuscular_Hemoglobin_Concentration"
+  - "Mean_Corpuscular_Hemoglobin"
+  - "Red_Cell_Distribution_Width"
+  - "Anion_Gap"
+  - "Mean_Platelet_Volume"
+  - "Magnesium"
+  - "Lymphocytes_Percent"
+  - "Monocytes_Percent"
+  - "Eosinophils_Percent"
+  - "Neutrophils_Percent"
+  - "Basophils_Percent"
+  - "Albumin"
+  - "AST"
+  - "ALT"
+  - "Total_Protein"
+  - "Alkaline_Phosphatase"
+  - "Total_Bilirubin"
+  - "Phosphate"
+  - "Arterial_O2_Pressure"
+  - "Arterial_CO2_Pressure"
+  - "Blood_pH"
+  - "INR"
+  - "Bicarbonate_Alt"
+  - "Prothrombin_Time"
+  - "Fraction_Inspired_Oxygen"
+  - "Oxygen_Saturation"
+  - "Base_Excess"
+  - "Partial_Thromboplastin_Time"
+  - "Lactate"
+  - "Troponin_I"
+  - "Total_CO2"
+  - "Calcium_Ionized"
+  - "Body_Temperature_C_x"
+  - "Positive_End_Expiratory_Pressure"
+  - "Creatine_Phosphokinase"
+  - "Urine_Specific_Gravity"
+  - "Methemoglobin"
+  - "Carboxyhemoglobin"
+  - "Tidal_Volume"
+  - "Direct_Bilirubin"
+  - "Band_Neutrophils_Percent"
+  - "CPK_MB"
+  - "Base_Deficit"
+  - "Oxygen_Content"
+  - "Ventilator_Rate"
+  - "Triglycerides"
+  - "Resp_Rate"
+  - "B_Natriuretic_Peptide"
+  - "Thyroid_Stimulating_Hormone"
+  - "Lipase"
+  - "Vancomycin_Trough"
+  - "Troponin_T"
+  - "Fibrinogen"
+  - "Oxyhemoglobin"
+  - "Total_Cholesterol"
+  - "HDL_Cholesterol"
+  - "CPK_MB_Index"
+  - "Ammonia"
+  - "Serum_Osmolality"
+  - "Oxygen_Flow_Rate"
+  - "Ventilator_Pressure_Support"
+  - "Urine_WBCs"
+  - "LDL_Cholesterol"
+  - "Lactate_Dehydrogenase"
+  - "Vancomycin_Random"
+  - "Prealbumin"
+  - "Iron_Serum"
+  - "Body_Temperature_C_y"
+  - "Arterial_Oxygen_Saturation"
+  - "Heart_Rate"
+  - "Respiratory_Rate"
+  - "Central_Venous_Pressure"
+  - "End_Tidal_CO2"
+  - "Systolic_BP_NIBP"
+  - "Diastolic_BP_NIBP"
+  - "Mean_Arterial_Pressure_NIBP"
+  - "Systolic_BP_Arterial"
+  - "Diastolic_BP_Arterial"
+  - "Mean_Arterial_Pressure_Arterial"
+
+ts_hours:
+  - "Hours"
+
+# Covariates
+covars_cat:
+  - "Gender"
+
+covars_cont:
+  - "Age"
+
+# Discretization parameters
+bin_type: "uniform"  # 'uniform' or 'quantile'
+n_bins_default: 10
+disc_version: v1
+
+
+disc_name:
+
+n_workers: 8
+
+
+# Horizons (experimental)
+horizons:
+  - 12
+  - 24
+  - 36
+  - 48
+
+# Splits to process
+splits:
+  - "train"
+  - "val"
+  - "test"
+
+# Discretization bins
+age_bins:
+  - 18
+  - 20
+  - 25
+  - 30
+  - 35
+  - 40
+  - 45
+  - 50
+  - 55
+  - 60
+  - 65
+  - 70
+  - 75
+  - 80
+  - 85
+  - 90
+
+hours_bins:
+  - 0
+  - 0.5
+  - 1.5
+  - 2.5
+  - 3.5
+  - 6.5
+  - 10.5
+  - 16.5
+  - 26.5
+  - 48.0
+  - 48.1
+  - 60.1
+  - 80.1
+  - 110.1
+  - 150.1
+  - 200.1
+
+# Soft label parameters (experimental)
+soft_label_kernel_size: 7
+soft_label_sigma: 1.0
+
+# Plotting
+save_plots: true

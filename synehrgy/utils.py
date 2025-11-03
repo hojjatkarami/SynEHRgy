@@ -3206,6 +3206,10 @@ def compute_mia_knn(REAL, FAKE, TEST):
         # Calculate the average distribution
         m = 0.5 * (p + q)
 
+        m = m / m.sum()
+        p = p / p.sum()
+        q = q / q.sum()
+
         # Calculate the Jensen-Shannon Divergence
         jsd = 0.5 * (entropy(p, m) + entropy(q, m))
         return jsd
@@ -3215,11 +3219,10 @@ def compute_mia_knn(REAL, FAKE, TEST):
     pdf_train = kde_train(x_values)
     pdf_test = kde_test(x_values)
 
-    wasserstein_distance(pdf_train, pdf_test)
-    jensen_shannon_divergence(pdf_train, pdf_test)
 
     metrics = {
         "MIA/WD": wasserstein_distance(pdf_train, pdf_test),
+        "MIA/WD2": wasserstein_distance(train_nearest_dist.flatten(), test_nearest_dist.flatten()),
         "MIA/JSD": jensen_shannon_divergence(pdf_train, pdf_test),
         "MIA/knn-auroc": roc_auc_score(
             np.concatenate(

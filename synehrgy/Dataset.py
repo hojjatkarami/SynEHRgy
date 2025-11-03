@@ -10,10 +10,13 @@ import os
 
 from torch.utils.data import Dataset
 
+from datasets import load_from_disk
 
+import plotly.express as px
+import plotly.graph_objects as go
+from transformers.utils import logging
 
-
-
+logger = logging.get_logger(__name__)
 
 def tokenize_dataset(dataset_orig, config, truncate=True, split=False, ignore_ts=False, bin_type='quantile',ts_shuffle=False):
 
@@ -481,42 +484,70 @@ def pad_inputs(inputs, config):
 
 
 class ClinicalDataset(Dataset):
-    def __init__(self, path_processed,  split='test', data=None, metadata=None):
+    def __init__(self, path_processed, n_ctx, split='test', data=None, load_discretized=False, metadata=None, disc_name='qqq', data_name=None, tok_strategy="var+quant"):
 
         self.path = path_processed
         self.split = split
+        self.metadata = pickle.load(open(path_processed+f"/metadata_{disc_name}.pkl", "rb"))
+        self.var2id = self.metadata['var2id']
+        self.n_ctx = n_ctx
+        self.tok_strategy = tok_strategy
 
         if split=='synthetic':
+            self.is_synthetic = True    
 
-            self.data = data
-            
-            self.is_synthetic = True
-            self.is_tokenized = True
-            self.is_discretized = True
+            if data is None:
+                from datasets import load_from_disk
+                self.data = load_from_disk(f'./data/synthetic/hf_{data_name}')
+                self.is_tokenized = False
+                self.is_discretized = True
 
-            self.metadata = metadata
-            
-            self.n_ctx = len(self.data[0])
+            else:
+
+                self.data = data
+                
+                self.is_tokenized = True
+                self.is_discretized = False
+
+
+
+                # self.metadata = metadata
+                
+                # self.n_ctx = len(self.data[0])
 
             
             print("[info] Loaded synthetic dataset. Please note that the dataset is already tokenized and discretized")
 
         elif split in ['train','val','test']:
 
-            self.data = pickle.load(open(path_processed+f"/{split}Dataset.pkl", "rb"))
-            
-            self.metadata = pickle.load(open(path_processed+"/metadata2.pkl", "rb"))
-            
+
+            if load_discretized:
+                assert os.path.exists(self.path + f"/{self.split}DiscDataset_{disc_name}.pkl"), f"Discretized dataset not found: {self.path + f'/ {self.split}DiscDataset_{disc_name}.pkl'}"
+
+                from datasets import load_from_disk
+                self.data = load_from_disk(self.path + f"/hf_{self.split}DiscDataset_{disc_name}")
+                print(self.data)
+
+                self.is_discretized = True
+            else:
+
+
+                self.data = pickle.load(open(path_processed+f"/{split}Dataset.pkl", "rb"))
+                
+                self.is_discretized = False
+
+            # self.metadata = pickle.load(open(path_processed+f"/metadata_{disc_name}.pkl", "rb"))
+
             self.is_synthetic = False
-            self.is_discretized = False
             self.is_tokenized = False
+
+            self.n_ctx = n_ctx
 
 
         else:
             raise ValueError("split must be one of ['train','val','test','synthetic']")
 
-        self.mask_token_id = self.metadata['token2id']['<pad>']
-        self.pad_token_id = self.metadata['token2id']['<pad>']
+        
         self.mask_probability = 0
 
         # print some stats
@@ -527,12 +558,17 @@ class ClinicalDataset(Dataset):
 
     def __getitem__(self, idx):
         
-        if (not self.is_discretized) or (not self.is_tokenized):
+        # if (not self.is_discretized) or (not self.is_tokenized):
+            
+        #     return self.data[idx]
+        if self.is_tokenized:
             return self.data[idx]
-        
-        
-        
-        
+        else:
+            output = self.tokenize_item(self.data[idx], self.n_ctx)
+            # print(len(output))
+
+            return output
+
         input_ids = self.data[idx]        
 
         masked_input_ids, labels = self._mask_tokens(input_ids)
@@ -642,24 +678,92 @@ class ClinicalDataset(Dataset):
                 # print("Error: different length of new_labs and new_values")
                 pass
         return adm_ts
-    def discretize(self, redo=False, cache=True):
+    
+    def get_token_list(self, tok_strategy):
+        token2id = self.metadata['token2id']
+        self.tok_strategy = tok_strategy
+        
+        
+        if self.tok_strategy == "var+quant":
+
+            # Separate tokens by type
+            temp_non_ts = [k for k in token2id.keys() if k[0] != 'ts']
+            temp_ts = [k for k in token2id.keys() if k[0] == 'ts']
+
+            # Extract time-series variable and quantile tokens
+            temp_var = sorted({('ts', k[1]) for k in temp_ts if len(k) > 1})
+            temp_quant = sorted({('quant', k[2]) for k in temp_ts if len(k) > 2})
+
+            # Combine in deterministic order
+            token2id_new = {}
+            for k in temp_non_ts:
+                token2id_new[k] = len(token2id_new)
+            for k in temp_var:
+                token2id_new[k] = len(token2id_new)
+            for k in temp_quant:
+                token2id_new[k] = len(token2id_new)
+
+            token2id = token2id_new
+            # metadata['token2id'] = token2id
+
+        assert len(token2id) == max(token2id.values()) + 1, "Error in token2id construction"
+        return list(token2id.keys())
+    def discretize(self,tok_strategy, redo=False, cache=True, disc_name='uniform_v1'):
+
+        # if self.is_discretized:
+        #     return
+        self.tok_strategy = tok_strategy
+        token2id = self.metadata['token2id']
+        
+        if tok_strategy == "var+quant":
+            token2id = self.metadata['token2id']
+
+            # Separate tokens by type
+            temp_non_ts = [k for k in token2id.keys() if k[0] != 'ts']
+            temp_ts = [k for k in token2id.keys() if k[0] == 'ts']
+
+            # Extract time-series variable and quantile tokens
+            temp_var = sorted({('ts', k[1]) for k in temp_ts if len(k) > 1})
+            temp_quant = sorted({('quant', k[2]) for k in temp_ts if len(k) > 2})
+
+            # Combine in deterministic order
+            token2id_new = {}
+            for k in temp_non_ts:
+                token2id_new[k] = len(token2id_new)
+            for k in temp_var:
+                token2id_new[k] = len(token2id_new)
+            for k in temp_quant:
+                token2id_new[k] = len(token2id_new)
+
+            token2id = token2id_new
 
         # reading from metadata
         self.possibleValues = self.metadata['possibleValues']
         self.discretization = self.metadata['discretization']
-        self.var2id = self.metadata['var2id']
-        self.token2id = self.metadata['token2id']
+        # self.var2id = self.metadata['var2id']
+        self.token2id = token2id
         self.isCategorical = self.metadata['isCategorical']
         self.codeToId = self.metadata['codeToId']
         self.ts_info = self.metadata['ts_info']
+
+        self.mask_token_id = token2id['<pad>']
+        self.pad_token_id = token2id['<pad>']
         
+        if self.is_discretized:
+            return
         
+
         if not self.is_discretized and not redo:
 
             # check if the discretized data is already saved
-            if os.path.exists(self.path + f"/{self.split}DiscDataset.pkl"):
-                print('[info] Discretized data already exists. Loading...')
-                self.data = pickle.load(open(self.path + f"/{self.split}DiscDataset.pkl", "rb"))
+            if os.path.exists(self.path + f"/{self.split}DiscDataset_{disc_name}.pkl"):
+                print(f'[info] Discretized data already exists **{disc_name}**. Loading...')
+                # self.data = pickle.load(open(self.path + f"/{self.split}DiscDataset_{disc_name}.pkl", "rb"))
+
+                from datasets import load_from_disk
+                self.data = load_from_disk(self.path + f"/hf_{self.split}DiscDataset_{disc_name}")
+                print(self.data)
+                
 
                 self.is_discretized = True
                 return
@@ -675,9 +779,9 @@ class ClinicalDataset(Dataset):
             all_codes = []
             all_ts = []
             all_horizons = []
-            for i_stay in range(len(p['hadm_id'])):
+            for i_stay in range(len(p['ts'])):
                 new_code = []
-                covariates = p['covariates'][i_stay]
+                covariates = p['covars'][i_stay]
                 
                 # def add_covars():
                     
@@ -766,9 +870,117 @@ class ClinicalDataset(Dataset):
             pickle.dump(self.data, open(self.path + f"/{self.split}DiscDataset.pkl", "wb"))
         pass
 
-    
 
-    def tokenize(self,n_ctx=1024, label_shuffle=False, truncate=True, split=False, ignore_ts=False,ts_shuffle=False):
+    def tokenize_item(self, orig_ehr, n_ctx, label_shuffle=False, ignore_ts=False, ts_shuffle=False):
+        n_stays = len(orig_ehr["codes"])
+
+        new_ehr = []
+        temp_horizon = [-1,-1,-1,-1]
+        # add start record token
+        new_ehr.append('<s>')  # Start Record
+        
+
+        if 'labels_phe' not in orig_ehr:
+            orig_ehr['labels_phe'] = [[0]*25 for _ in range(n_stays)]
+        for i in range(n_stays):
+            adm_labels_phe = orig_ehr["labels_phe"][i]
+            adm_labels_ihm = orig_ehr["labels_ihm"][i]
+            adm_covars = orig_ehr["covars"][i]
+            adm_covars = orig_ehr["covars"][0] 
+            adm_codes = orig_ehr["codes"][i]
+            adm_ts = orig_ehr["ts"][i]
+            # adm_horizon = orig_ehr["horizons"][i]
+
+            # add covars
+            if len(adm_covars)==0:
+                logger.warning("No covariates found")
+            else:
+                
+                for var_id,disc_val in zip(adm_covars[0],adm_covars[1]):
+                    new_ehr.append(('covar',var_id,disc_val))
+
+            new_ehr.append('</covar>')
+
+            # Add Labels
+            # add ihm label
+            new_ehr.append(
+                ('label','ihm',adm_labels_ihm)
+            )
+            # config.preprocess.label_shuffle
+            all_labels_phe = np.random.permutation(np.array(adm_labels_phe).nonzero()[0]) if label_shuffle else np.array(adm_labels_phe).nonzero()[0]
+            
+            for l in all_labels_phe:
+                new_ehr.append(('label','phe',l))
+
+            
+
+            new_ehr.append(
+                '</label>')
+                # End Labels
+            
+
+
+            # # Add Covariates
+            # for c in new_covariates:
+            #     new_ehr.append(c + config.code_vocab_size + config.label_vocab_size)
+            
+
+        
+            # Add code tokens
+            for c in adm_codes:
+                new_ehr.append(('code',c))
+            new_ehr.append('</code>')
+
+            # add ts tokens
+            if not ignore_ts:
+                for kk,v in enumerate(adm_ts):
+                    if len(v[0]) == 0:
+                        continue
+                    var_ids = v[0]
+                    disc_vals = v[1]
+                    if ts_shuffle:
+                        # shuffle var_ids and disc_vals in the same way
+                        var_ids,disc_vals = zip(*random.sample(list(zip(var_ids,disc_vals)),len(var_ids)))
+
+
+                    for var_id,disc_val in zip(var_ids,disc_vals):
+
+                        if self.tok_strategy == "var_quant":
+                            new_ehr.append(('ts',var_id,disc_val))
+                        elif self.tok_strategy == "var+quant":
+                            new_ehr.append(('ts',var_id))
+                            new_ehr.append(('quant',disc_val))
+
+
+
+
+
+                    # add time gap
+                    new_ehr.append(('timestamp',self.var2id['Hours'],v[2][0]))
+
+
+                    # if i==0: # only first stay
+                    #     for i_h, hor in enumerate(adm_horizon):
+                    #         if kk == hor:
+                    #             temp_horizon[i_h] = len(new_ehr)
+                            
+
+
+                new_ehr.append('</ts>')
+
+
+            # add end adm token
+            new_ehr.append(
+                '</adm>')
+            
+
+        # add end record token
+        new_ehr.append(
+            '</s>')
+        
+        return new_ehr
+
+    def tokenize(self,n_ctx, tok_strategy, label_shuffle=False, truncate=True, split=False, ignore_ts=False,ts_shuffle=False):
 
         assert self.is_discretized, "Data must be discretized first"
 
@@ -785,116 +997,13 @@ class ClinicalDataset(Dataset):
         # for orig_ehr in tqdm(dataset_orig, desc="Tokenizing Dataset"):
         n_truncated_tokens = 0
         for orig_ehr in tqdm(self.data, desc="Tokenizing Dataset"):
-            
-            n_stays = len(orig_ehr["codes"])
 
-            new_ehr = []
-            temp_horizon = [-1,-1,-1,-1]
-            # add start record token
-            new_ehr.append(token2id['<s>'])  # Start Record
-            
-
-            
-            for i in range(n_stays):
-                adm_labels_phe = orig_ehr["labels_phe"][i]
-                adm_labels_ihm = orig_ehr["labels_ihm"][i]
-                adm_covars = orig_ehr["covars"][i]
-                adm_codes = orig_ehr["codes"][i]
-                adm_ts = orig_ehr["ts"][i]
-                adm_horizon = orig_ehr["horizons"][i]
-
-                # add covars
-                for var_id,disc_val in zip(adm_covars[0],adm_covars[1]):
-                    new_ehr.append(token2id[('covar',var_id,disc_val)])
-
-                new_ehr.append(token2id['</covar>'])
-
-                # Add Labels
-                # add ihm label
-                new_ehr.append(
-                    token2id[('label','ihm',adm_labels_ihm)]
-                )
-                # config.preprocess.label_shuffle
-                all_labels_phe = np.random.permutation(adm_labels_phe.nonzero()[0]) if label_shuffle else adm_labels_phe.nonzero()[0]
-                
-                for l in all_labels_phe:
-                    new_ehr.append(token2id[('label','phe',l)])
-
-                
-
-                new_ehr.append(
-                    token2id['</label>']
-                )  # End Labels
-                
-
-
-                # # Add Covariates
-                # for c in new_covariates:
-                #     new_ehr.append(c + config.code_vocab_size + config.label_vocab_size)
-                
-
-            
-                # Add code tokens
-                for c in adm_codes:
-                    new_ehr.append(token2id[('code',c)])
-                new_ehr.append(token2id['</code>'])
-                
-                # add ts tokens
-                if not ignore_ts:
-                    for kk,v in enumerate(adm_ts):
-                        if len(v[0]) == 0:
-                            continue
-                        var_ids = v[0]
-                        disc_vals = v[1]
-                        if ts_shuffle:
-                            # shuffle var_ids and disc_vals in the same way
-                            var_ids,disc_vals = zip(*random.sample(list(zip(var_ids,disc_vals)),len(var_ids)))
-
-
-                        for var_id,disc_val in zip(var_ids,disc_vals):
-                            new_ehr.append(token2id[('ts',var_id,disc_val)])
-
-                        # add time gap
-                        new_ehr.append(token2id[('timestamp',var2id['Hours'],v[2][0])])
-
-
-                        if i==0: # only first stay
-                            for i_h, hor in enumerate(adm_horizon):
-                                if kk == hor:
-                                    temp_horizon[i_h] = len(new_ehr)
-                                
-
-                    new_ehr.append(token2id['</ts>'])
-
-
-
-
-                # add end adm token
-                new_ehr.append(
-                    token2id['</adm>']
-                )
-
-            # add end record token
-            new_ehr.append(
-                token2id['</s>']
-            )  # End Record
-            
-
-            if truncate:
-                n_truncated_tokens += max(0, len(new_ehr) - n_ctx)
-                new_ehr = new_ehr[:n_ctx]
-
-            if split:
-                # split into multiple records of size n_ctx
-                while len(new_ehr) > n_ctx:
-                    dataset.append(new_ehr[: n_ctx])
-                    new_ehr = new_ehr[n_ctx :]
-
+            new_ehr = self.tokenize_item(orig_ehr, self.n_ctx)
 
             dataset.append(new_ehr)
-            tok_horizons.append(temp_horizon)
+        #     tok_horizons.append(temp_horizon)
 
-        assert len(tok_horizons) == len(dataset)
+        # assert len(tok_horizons) == len(dataset)
         
         n_tokens = sum([len(x) for x in dataset])
         print(f"[info] Dataset size: {n_tokens / 1e6:.2f}M tokens")
@@ -915,14 +1024,21 @@ class ClinicalDataset(Dataset):
         # return dataset, tok_horizons
 
     
-    def detokenize(self):
+    def detokenize(self, tokenizer):
         
         if not self.is_tokenized:
             print("Data is not tokenized")
             return
-        id2token =  {v:k for k,v in self.metadata['token2id'].items()}
+        # id2token =  {v:k for k,v in self.metadata['token2id'].items()}
+
+        token2id = tokenizer.get_vocab()
+        id2token = {v:k for k,v in token2id.items()}
         no_ihm = 0 # number of patients without ihm label
         
+        # temp_timestamp = [k for k in self.metadata['token2id'].keys() if k[0] == 'timestamp']
+        # print('# timestamp tokens:', (temp_timestamp))
+        
+
 
         n_full = 0
         n_trunc = 0
@@ -930,7 +1046,8 @@ class ClinicalDataset(Dataset):
 
         for i in tqdm(range(len(self.data)), desc="Detokenizing"):
             seq_tokens = [id2token[x] for x in self.data[i]]
-            
+            # print(seq_tokens)
+            # continue
             
             all_labels_phe = []
             all_labels_ihm = []
@@ -939,7 +1056,7 @@ class ClinicalDataset(Dataset):
             all_ts = []
             all_covars = []
 
-            current_label_phe = np.zeros(25, dtype=int)
+            current_label_phe = np.zeros(25, dtype=int).tolist()
             current_label_ihm = 0
             current_code = []
             current_ts = []
@@ -954,7 +1071,8 @@ class ClinicalDataset(Dataset):
             temp_label_ihm = 0
             
             last_token = False
-
+            flag_expecting_quant = False
+            buffer_ts_var = None
             for token in seq_tokens:
                 
                 if token == '<s>':
@@ -972,15 +1090,31 @@ class ClinicalDataset(Dataset):
                             temp_label_ihm = token[2]
 
                     elif token[0] == 'code':
+                        
                         temp_code.append(token[1])
 
                     elif token[0] == 'ts':
-                        ts_vars.append(token[1])
-                        ts_vals.append(token[2])
+                        if len(token)==3: # var_quant
+                            ts_vars.append(token[1])
+                            ts_vals.append(token[2])
+                        else: # var+quant
+                            
+                            flag_expecting_quant = True
+                            buffer_ts_var = token[1]
+                            # print("Expecting quant value for var:", buffer_ts_var)
 
+
+                    elif token[0] == 'quant' and flag_expecting_quant:
+                        
+                        ts_vars.append(buffer_ts_var)
+                        ts_vals.append(token[1])
+                        # print("Quant value for var:", buffer_ts_var, "is", token[1])
+
+                        flag_expecting_quant = False
+                        buffer_ts_var = None
 
                     elif token[0] == 'timestamp':
-                        
+                        # print("Adding timestamp token", token)
                         current_ts.append((
                             
                             ts_vars,
@@ -1049,30 +1183,121 @@ class ClinicalDataset(Dataset):
                 'labels_phe': all_labels_phe,
                 'labels_ihm': all_labels_ihm
             })
-
+            # print('#admissions:', len(all_codes[0]))
+            # print('#time series:', len(all_ts[0]))
 
         print(f"full: {n_full}, truncated: {n_trunc}")
         print(f"no ihm: {no_ihm} / {len(self.data)}")
         
 
         self.is_tokenized = False
+        self.is_discretized = True
         self.data = ehr_outputs
         
         # return ehr_outputs
 
 
-    def save(self, name):
+    def save(self,syn_folder, run_name):
         if self.is_synthetic:
             assert not self.is_tokenized, "Please detokenize the data first"
-            os.makedirs(self.path, exist_ok=True)
+            os.makedirs(syn_folder, exist_ok=True)
             pickle.dump(
                 self.data,
-                open(f"{self.path}/{name}Dataset.pkl", "wb"),
+                open(f"{syn_folder}/{run_name}Dataset.pkl", "wb"),
             )
 
-            print(f"[info] Saved synthetic dataset to {self.path}/{name}Dataset.pkl")
+            print(f"[info] Saved synthetic dataset to {syn_folder}/{run_name}Dataset.pkl")
 
 
+             # save as HF dataset
+            from datasets import Dataset
+
+            hf_dataset = Dataset.from_list(self.data)
+            hf_dataset.save_to_disk(f"{syn_folder}/hf_{run_name}")
+
+
+    def plot_token_dist(self, sample_size=10000):
+        """Plot histogram of token lengths for a random subset of samples (default: 10,000). Returns a plotly figure."""
+        
+        token_lengths = []
+        if self.is_discretized:
+            # sample subset of data
+            data_subset = self.data[:sample_size]
+            
+            for item in tqdm(self.data, desc=f"Tokenizing {len(data_subset)} samples"):
+                sample = self.tokenize_item(item, n_ctx=10000)
+                token_lengths.append(len(sample))
+
+                if len(token_lengths) > sample_size:
+                    break
+        # # save to pickle
+        # with open("token_lengths.pkl", "wb") as f:
+        #     pickle.dump(token_lengths, f)
+        
+        # define custom bin edges
+        bin_edges = np.array([0, 64, 256, 512, 1024, 2048, 4096, 8192, 20000])
+
+        # use equal binsize=50
+        bin_edges = np.arange(0, 20001, 200)
+
+        # compute histogram
+        bin_heights, _ = np.histogram(token_lengths, bins=bin_edges)
+
+        # normalize to probabilities
+        bin_heights = bin_heights.astype(float) / bin_heights.sum()
+
+        # cumulative heights
+        bin_heights = np.cumsum(bin_heights)
+
+        # finite bin edges for display
+        finite_edges = np.where(np.isinf(bin_edges), np.nan, bin_edges)
+        bin_centers = 0.5 * (finite_edges[:-1] + np.nan_to_num(finite_edges[1:], nan=finite_edges[-2]*2))
+        bin_widths = np.diff(np.nan_to_num(finite_edges, nan=finite_edges[-2]*2))
+
+        # build figure
+        fig_dist = go.Figure()
+        fig_dist.add_trace(
+            go.Bar(
+                x=bin_centers,
+                y=bin_heights,
+                width=bin_widths,
+                marker_color="blue",
+                name="Token Length Distribution",
+            )
+        )
+
+        # update layout
+        fig_dist.update_layout(
+            title=f"Token Length Distribution ({len(token_lengths)} samples)",
+            xaxis_title="Token Length",
+            yaxis_title="Count",
+            bargap=0.1,
+        )
+
+
+
+
+        usage = {}
+        for n_ctx in [256, 512, 1024, 2048, 4096, 8192, 8192*2]:
+            usage[n_ctx] = sum([x if x < n_ctx else n_ctx for x in token_lengths])
+            usage[n_ctx] /= sum(token_lengths)
+
+        fig_usage = go.Figure()
+        fig_usage.add_trace(
+            go.Scatter(
+                x=list(usage.keys()),
+                y=list(usage.values()),
+                mode="lines+markers",
+                name="Token Usage",
+            )
+        )
+        fig_usage.update_layout(
+            title="Token Usage by Context Length",
+            xaxis_title="Context Length",
+            yaxis_title="Usage",
+        )
+
+        return fig_dist, fig_usage
 
 class MyDataset(Dataset):
     def __init__(self, data, config, mask_probability=0, truncate=True, split=False, ignore_ts=False, bin_type='quantile'):

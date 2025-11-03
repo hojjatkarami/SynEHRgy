@@ -1,0 +1,3 @@
+project_path: "/home/hokarami/code/SynEHRgy"
+path: ${.project_path}/data/processed/eicu
+type: cont

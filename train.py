@@ -49,35 +49,39 @@ class PerplexityLoggingCallback(TrainerCallback):
 def main(cfg: DictConfig):
 
 
+
     RUN_NAME = cfg.run_name
     
-    config = HydraConfig(cfg)
+    # config = HydraConfig(cfg, tok_strategy=cfg.tok_strategy)
     
     # Data Loading
 
         # load processed data
-    train_dataset = ClinicalDataset(config.dataset_folder, split='train')
-    eval_dataset = ClinicalDataset(config.dataset_folder, split='val')
-    
+    train_dataset = ClinicalDataset(cfg.data.path, cfg.n_ctx, load_discretized=True,split='train', disc_name=cfg.disc_name, tok_strategy=cfg.tok_strategy)
+    eval_dataset = ClinicalDataset(cfg.data.path, cfg.n_ctx, load_discretized=True,split='val', disc_name=cfg.disc_name, tok_strategy=cfg.tok_strategy)
+
         # discretize the data
-    train_dataset.discretize()
-    eval_dataset.discretize()
-    
-        # tokenize the data
-    train_dataset.tokenize(n_ctx=config.n_ctx)
-    eval_dataset.tokenize(n_ctx=config.n_ctx)
-    
+    # train_dataset.discretize(tok_strategy=cfg.tok_strategy, disc_name=cfg.disc_name)
+    # eval_dataset.discretize(tok_strategy=cfg.tok_strategy, disc_name=cfg.disc_name)
 
-    # init wandb
-    wandb_config = {k: v for k, v in vars(config).items() if k != "w_class"}
-    wandb.init(project=cfg.wandb.project, name = RUN_NAME,config=wandb_config)
+    token_list = train_dataset.get_token_list(tok_strategy=cfg.tok_strategy)
 
+    # tokenize the data
+    # train_dataset.tokenize(n_ctx=cfg.n_ctx, tok_strategy=cfg.tok_strategy)
+    # eval_dataset.tokenize(n_ctx=cfg.n_ctx, tok_strategy=cfg.tok_strategy)
+
+
+    
+    # Example usage:
+    wandb.init(project=cfg.wandb.project, name=RUN_NAME, config=OmegaConf.to_container(cfg, resolve=True))
+    # log_flat(run, cfg)
 
     # build the model
     trainer = SynEHRgy(cfg,
-                       config,
+                    #    config,
                      train_dataset=train_dataset,
                      eval_dataset=eval_dataset,
+                     token_list=token_list,
                      run_name=RUN_NAME
                      )
 

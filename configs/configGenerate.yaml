@@ -1,5 +1,5 @@
 ###########
-run_name: "mimic3-qwen-s" # this model should exist in the saved_models folder
+run_name: "v6-gpt3" # this model should exist in the saved_models folder
 fix_covars: False # [Under development] this is used for the forecasting task. a conditional generation method.
 bin_type: uniform
 #######
@@ -7,6 +7,10 @@ bin_type: uniform
 n_samples: 6000 #78000
 n_resample: 1000
 batch_size: 256 # number of generated patients during each inference.
+
+n_ctx:
+# disc_name: uniform_v1
+# tok_strategy: var_quant # var_quant or var+quant
 
 generation: # generation params as in .generate() method in HuggingFace
   top_k: 50
