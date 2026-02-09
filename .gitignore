@@ -1,9 +1,7 @@
 
 
 # ignore data files
-data/processed/mimic3/*
-data/synthetic/*
-data/SynTS/*
+data/
 saved_models/*
 bin
 saved_models/*

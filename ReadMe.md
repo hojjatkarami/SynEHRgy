@@ -1,3 +1,13 @@
+# ⚠️ Deprecated Repository
+
+**This repository is deprecated and no longer maintained.**
+
+➡️ **Please use the new version instead:**  
+👉 https://github.com/hojjatkarami/SynEHRgy-v2
+
+All future development, bug fixes, and updates happen in the new repository.
+
+---
 # SynEHRgy: Synthesizing Mixed-Type Structured Electronic Health Records
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Y-debug-sys/Diffusion-TS/blob/main/LICENSE)
