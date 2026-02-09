@@ -5,7 +5,14 @@
 ➡️ **Please use the new version instead:**  
 👉 https://github.com/hojjatkarami/SynEHRgy-v2
 
-All future development, bug fixes, and updates happen in the new repository.
+The new repository includes:
+- ✅ **More features**
+- 🚀 **Faster training and generation**
+- 📦 **Updated and actively maintained libraries**
+- 🧹 **Cleaner and more scalable architecture**
+
+All future development, improvements, and bug fixes are available only in the new repository.  
+This repository is kept for **archival and reproducibility purposes**.
 
 ---
 # SynEHRgy: Synthesizing Mixed-Type Structured Electronic Health Records
